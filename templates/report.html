@@ -3,5 +3,23 @@
 {% block title %}Report a Hazard{% endblock %}
 {% block content %}
     <h1>Report a Hazard</h1>
-    <p>The submission form will go here (to be done later).</p>
+    
+    <form action= "{{url_for('report')}}" method="post">
+        <label for="hazard_type">Hazard type</label>
+        <select name="hazard_type" id="hazard_type">
+            <option value="">-- Select Option --</option>
+            <option value="pothole">Pothole</option>
+            <option value="streetlight">Broken streetlight</option>
+            <option value="garbage">Garbage</option>
+            <option value="flooding">Flooding</option>
+        </select>
+
+        <label for="location">Location</label>
+        <input type="text" name="location" id="location">
+
+        <label for="description">Description</label>
+        <textarea name="description" id="description"></textarea>
+
+        <button type="submit">Submit report</button>
+    </form>
 {% endblock %}
