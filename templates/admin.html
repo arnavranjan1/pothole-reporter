@@ -1,0 +1,19 @@
+<!-- admin dashboard -->
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+    <h1>All reports (admin)</h1>
+
+    {% for report in reports %}
+        <div>
+            <strong>{{ report.hazard_type }}</strong> @ {{ report.location }}
+            <br>Status: {{ report.status }}
+            <!-- report.author is None for old reports → guard prevents a crash -->
+            <br>Filed by: {{ report.author.username if report.author else "unknown" }}
+            <br><small>{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
+        </div>
+        <hr>
+    {% else %}                                              <!-- runs only if the list is empty -->
+        <p>No reports yet.</p>
+    {% endfor %}
+{% endblock %}

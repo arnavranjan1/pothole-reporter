@@ -13,6 +13,8 @@
                 {# report.hazard_type etc. is literally the model attribute — the ORM payoff: clean object access, not tuple-indexing #}
                 <strong>{{ report.hazard_type }}</strong> — {{ report.location }}
                 ({{ report.status }})
+                {# report.author is the relationship → the User object, or None for old reports that predate the user_id column. the guard prints "unknown" instead of crashing on None.username #}
+                <br>Filed by: {{ report.author.username if report.author else "unknown" }}
                 {# only print the description line if there is one — it's optional/nullable #}
                 {% if report.description %}
                     <br>{{ report.description }}
