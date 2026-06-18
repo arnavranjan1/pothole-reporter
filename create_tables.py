@@ -1,0 +1,5 @@
+from app import app, db                       #pull our configured app and db objects from app.py so this script uses the same database connection
+
+with app.app_context():                        #push the application context by hand. during a web request Flask does this automatically so db knows which database to use — but this is a standalone script with no request, so we activate it ourselves. without this you'd get a "working outside of application context" error
+    db.create_all()                            #reads every model registered on Base and issues CREATE TABLE for any that don't already exist. the construction crew building from the blueprint. defining the Report class alone never made the table — this does
+    print("Tables created.")                   #just confirmation that it ran

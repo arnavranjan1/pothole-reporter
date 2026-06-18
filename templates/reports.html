@@ -1,7 +1,27 @@
-<!-- all reports -->
+<!-- reports list page -->
 {% extends "base.html" %}
 {% block title %}All Reports{% endblock %}
 {% block content %}
     <h1>All Reports</h1>
-    <p>The list of reports will go here (to be done later).</p>
+
+    {# if the list passed in from the route has anything in it, show the list; else show the empty-state message below. Jinja treats an empty list as falsy #}
+    {% if reports %}
+        <ul>
+        {# loop over each Report object. inside, 'report' is one object and we reach its columns by dot access — the same attributes defined on the model #}
+        {% for report in reports %}
+            <li>
+                {# report.hazard_type etc. is literally the model attribute — the ORM payoff: clean object access, not tuple-indexing #}
+                <strong>{{ report.hazard_type }}</strong> — {{ report.location }}
+                ({{ report.status }})
+                {# only print the description line if there is one — it's optional/nullable #}
+                {% if report.description %}
+                    <br>{{ report.description }}
+                {% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        {# the empty state, with a link to the form to create the first one #}
+        <p>No reports yet. <a href="{{ url_for('report') }}">Report the first hazard.</a></p>
+    {% endif %}
 {% endblock %}
