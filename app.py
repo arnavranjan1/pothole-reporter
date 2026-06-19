@@ -8,6 +8,10 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_migrate import Migrate                          # wraps Alembic → the `flask db ...` commands
 from werkzeug.security import generate_password_hash, check_password_hash      # one-way password hashing (ships with Flask)
 
+import os                                                  # filesystem paths — building the save location, ensuring the folder exists
+from uuid import uuid4                                     # random token to prefix filenames → kills collisions
+from werkzeug.utils import secure_filename                 # sanitizes the client's filename → kills path traversal
+
 
 class Base(DeclarativeBase):                               # the declarative base every model inherits from — holds the table catalogue
     pass
@@ -21,12 +25,22 @@ app = Flask(__name__)                                      # the application obj
 app.secret_key = "dev-secret-change-me"                    # signs the session cookie — now load-bearing for auth security
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://localhost:5432/pothole_db"  # which Postgres db to talk to
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False       # silences an unused memory-leaking feature
+app.config["UPLOAD_FOLDER"] = "static/uploads"             # where photos land. under static/ so Flask serves them for free
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024         # 5 MB ceiling on the whole request body. server-side → client can't bypass it
+
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif"}         # allow-list of accepted image types. a set → fast membership check
+
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads folder on startup if missing. exist_ok=True → no crash if it already exists
 
 db.init_app(app)                                           # bind db to this app
 login_manager.init_app(app)                                # bind the login manager to this app
 migrate.init_app(app, db)                                  # bind migrate — needs both app and db (it inspects models)
 
 login_manager.login_view = "login"                         # when @login_required blocks someone, redirect to the route named "login"
+
+
+def allowed_file(filename):                                # is this a file type we accept?
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS  # split off extension, lowercase, check allow-list
 
 
 @login_manager.user_loader                                 # registers THE callback Flask-Login calls on every request
@@ -66,6 +80,9 @@ class Report(db.Model):                                    # the reports table
         db.DateTime(timezone=True),                        # timezone-aware timestamp
         default=lambda: datetime.now(timezone.utc),        # lambda → fresh time at EACH insert, not frozen at startup
     )
+    image_filename: Mapped[str | None] = mapped_column(    # the SAVED photo's filename (not the bytes). nullable → photo is optional
+        db.String(255), nullable=True
+    )
 
     user_id: Mapped[int | None] = mapped_column(           # which user filed this. nullable because old reports predate this column
         ForeignKey("users.id"), nullable=True              # FK → value must match a users.id. DB enforces real-owner integrity
@@ -93,10 +110,24 @@ def report():
             flash("Please choose a hazard type and enter a location.")
             return redirect(url_for("report"))
 
+        file = request.files.get("photo")                  # files arrive in request.files, NOT request.form. key = the input's name attribute
+        image_filename = None                              # default: no photo. stays None if nothing was uploaded
+
+        if file and file.filename:                         # a file object AND a non-empty filename → user actually chose something
+            if not allowed_file(file.filename):            # reject non-images BEFORE touching disk. server-side, don't trust the client
+                flash("Photo must be a JPG, PNG, or GIF.")
+                return redirect(url_for("report"))
+
+            safe_name = secure_filename(file.filename)     # strip slashes/.. → defuses path traversal
+            unique_name = f"{uuid4().hex}_{safe_name}"     # prepend a random token → two uploads can't collide
+            file.save(os.path.join(app.config["UPLOAD_FOLDER"], unique_name))  # stream the bytes to disk (≈ Java's transferTo)
+            image_filename = unique_name                   # store ONLY the filename in the DB
+
         new_report = Report(
             hazard_type=hazard_type,
             location=location,
             description=description,
+            image_filename=image_filename,                 # None if no photo, else the saved unique filename
             author=current_user,                           # stamp the logged-in user. relationship fills user_id automatically
         )
         db.session.add(new_report)                         # stage (like git add)

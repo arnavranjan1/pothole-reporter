@@ -19,6 +19,10 @@
                 {% if report.description %}
                     <br>{{ report.description }}
                 {% endif %}
+                {# only show a thumbnail if a photo was uploaded. ~ is Jinja's string-concat (not +) → builds 'uploads/<filename>' for the static route #}
+                {% if report.image_filename %}
+                    <br><img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" width="120">
+                {% endif %}
             </li>
         {% endfor %}
         </ul>

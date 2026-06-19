@@ -3,8 +3,9 @@
 {% block title %}Report a Hazard{% endblock %}
 {% block content %}
     <h1>Report a Hazard</h1>
-    
-    <form action= "{{url_for('report')}}" method="post">
+
+    {# enctype is REQUIRED for file uploads — without it the browser url-encodes the form and the file never arrives as a file part #}
+    <form action= "{{url_for('report')}}" method="post" enctype="multipart/form-data">
         <label for="hazard_type">Hazard type</label>
         <select name="hazard_type" id="hazard_type">
             <option value="">-- Select Option --</option>
@@ -19,6 +20,10 @@
 
         <label for="description">Description</label>
         <textarea name="description" id="description"></textarea>
+
+        <!-- name="photo" MUST match request.files.get("photo") in the route. accept is only a client hint — server-side allowed_file() is the real gate -->
+        <label for="photo">Photo (optional)</label>
+        <input type="file" name="photo" id="photo" accept="image/*">
 
         <button type="submit">Submit report</button>
     </form>

@@ -11,6 +11,10 @@
             <!-- report.author is None for old reports → guard prevents a crash -->
             <br>Filed by: {{ report.author.username if report.author else "unknown" }}
             <br><small>{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
+            {# thumbnail only if a photo exists. same ~ concat pattern as reports.html #}
+            {% if report.image_filename %}
+                <br><img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" width="120">
+            {% endif %}
         </div>
         <hr>
     {% else %}                                              <!-- runs only if the list is empty -->
