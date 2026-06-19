@@ -1,0 +1,34 @@
+<!-- interactive map page -->
+{% extends "base.html" %}
+{% block title %}Hazard Map{% endblock %}
+{% block content %}
+    <h1>Hazard Map — Gurgaon</h1>
+
+    <!-- Leaflet's stylesheet. NOT optional — without it tiles misalign and the zoom controls look broken. loaded from the unpkg CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <!-- the map container. MUST have a height or the map renders as nothing — a div is 0px tall by default (your comprehension-check answer #5) -->
+    <!-- the map container. height in vh = % of viewport → fills most of the screen and stays responsive on resize. (% wouldn't work — needs a sized parent) -->
+    <div id="map" style="height: 85vh;"></div>
+
+    <!-- Leaflet's JS. defines the global L object our code uses below. must load BEFORE our script runs -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- our map code. sits at the END of content, AFTER the #map div → the div already exists when this runs. the head-script null gotcha, dodged -->
+    <script>
+        // create the map, bind it to <div id="map">, center on Gurgaon, zoom 12
+        // [lat, lng] order — Leaflet's convention. swap them and the pin lands off the coast of Somalia
+        const map = L.map("map").setView([28.4595, 77.0266], 12);
+
+        // add the actual imagery: OpenStreetMap tiles. {z}/{x}/{y} get filled in per visible tile as you pan/zoom
+        // attribution is REQUIRED by OSM's usage policy — and just good manners
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(map);
+
+        // two sample markers from hardcoded coords — just to exercise the marker API
+        // NEXT session these get replaced by real reports pulled from the database
+        L.marker([28.4595, 77.0266]).addTo(map).bindPopup("Sample: pothole near Cyber City");
+        L.marker([28.4700, 77.0500]).addTo(map).bindPopup("Sample: broken streetlight");
+    </script>
+{% endblock %}

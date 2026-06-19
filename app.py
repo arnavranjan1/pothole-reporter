@@ -214,6 +214,10 @@ def admin():
     all_reports = db.session.execute(stmt).scalars().all()
     return render_template("admin.html", reports=all_reports)
 
+@app.route("/map")                                         # the interactive map page — public, no login needed (like /reports)
+def map_view():                                            # named map_view, NOT map — `map` is a Python builtin; shadowing it is the same class of bug as your old reports/reports_store collision
+    return render_template("map.html")                     # just renders the template; no DB data passed yet — markers are hardcoded this session
+
 
 if __name__ == "__main__":
     app.run(debug=True)                                    # dev server: auto-reload + detailed error pages
