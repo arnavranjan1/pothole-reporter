@@ -4,27 +4,77 @@
 {% block content %}
     <h1>Report a Hazard</h1>
 
+    <!-- Leaflet's stylesheet — same CDN as the main map page. without it the picker tiles misalign -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
     {# enctype is REQUIRED for file uploads — without it the browser url-encodes the form and the file never arrives as a file part #}
     <form action= "{{url_for('report')}}" method="post" enctype="multipart/form-data">
-        <label for="hazard_type">Hazard type</label>
-        <select name="hazard_type" id="hazard_type">
-            <option value="">-- Select Option --</option>
-            <option value="pothole">Pothole</option>
-            <option value="streetlight">Broken streetlight</option>
-            <option value="garbage">Garbage</option>
-            <option value="flooding">Flooding</option>
-        </select>
 
-        <label for="location">Location</label>
-        <input type="text" name="location" id="location">
+        {# each field wrapped in a block div so label+input sit on their own line — stops everything flowing inline into one row #}
+        <div style="margin-bottom: 1rem;">
+            <label for="hazard_type">Hazard type</label><br>
+            <select name="hazard_type" id="hazard_type">
+                <option value="">-- Select Option --</option>
+                <option value="pothole">Pothole</option>
+                <option value="streetlight">Broken streetlight</option>
+                <option value="garbage">Garbage</option>
+                <option value="flooding">Flooding</option>
+            </select>
+        </div>
 
-        <label for="description">Description</label>
-        <textarea name="description" id="description"></textarea>
+        <div style="margin-bottom: 1rem;">
+            <label for="location">Location</label><br>
+            <input type="text" name="location" id="location">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <label for="description">Description</label><br>
+            <textarea name="description" id="description"></textarea>
+        </div>
 
         <!-- name="photo" MUST match request.files.get("photo") in the route. accept is only a client hint — server-side allowed_file() is the real gate -->
-        <label for="photo">Photo (optional)</label>
-        <input type="file" name="photo" id="photo" accept="image/*">
+        <div style="margin-bottom: 1rem;">
+            <label for="photo">Photo (optional)</label><br>
+            <input type="file" name="photo" id="photo" accept="image/*">
+        </div>
 
-        <button type="submit">Submit report</button>
+        <!-- click-to-drop-pin map, now full-width and below all the fields. height in vh fills most of the viewport -->
+        <label>Pin the location (click on the map)</label>
+        <div id="pickerMap" style="height: 70vh; width: 100%;"></div>
+
+        <!-- the bridge: JS writes the clicked coords into these, they ride the POST as request.form fields -->
+        <input type="hidden" name="latitude"  id="latitude">
+        <input type="hidden" name="longitude" id="longitude">
+
+        <button type="submit" style="margin-top: 1rem;">Submit report</button>
     </form>
+
+    <!-- Leaflet's JS. must load BEFORE our script. sits after the #pickerMap div so the div exists when we bind to it -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // small picker map, centered on Gurgaon like the main map. [lat, lng] order — Leaflet convention
+        const pickerMap = L.map("pickerMap").setView([28.4595, 77.0266], 12);
+
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(pickerMap);
+
+        let marker = null;   // ONE pin only. we reuse it so repeated clicks don't stack a pile of markers
+
+        // the event listener — your addActionListener. fires on every map click
+        pickerMap.on("click", function (e) {
+            const lat = e.latlng.lat;     // Leaflet hands us {lat, lng} of wherever we clicked
+            const lng = e.latlng.lng;
+
+            // write into the hidden inputs → THIS is what makes the coord reach Flask on submit
+            document.getElementById("latitude").value  = lat;
+            document.getElementById("longitude").value = lng;
+
+            if (marker === null) {
+                marker = L.marker([lat, lng]).addTo(pickerMap);   // first click → create the pin
+            } else {
+                marker.setLatLng([lat, lng]);                     // later clicks → just move it
+            }
+        });
+    </script>
 {% endblock %}

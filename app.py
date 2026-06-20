@@ -84,6 +84,9 @@ class Report(db.Model):                                    # the reports table
         db.String(255), nullable=True
     )
 
+    latitude: Mapped[float | None] = mapped_column(db.Float, nullable=True)   # decimal coord. Float = Postgres double precision
+    longitude: Mapped[float | None] = mapped_column(db.Float, nullable=True)  # nullable → old rows (no coords) survive the migration
+
     user_id: Mapped[int | None] = mapped_column(           # which user filed this. nullable because old reports predate this column
         ForeignKey("users.id"), nullable=True              # FK → value must match a users.id. DB enforces real-owner integrity
     )
@@ -105,10 +108,21 @@ def report():
         hazard_type = request.form.get("hazard_type", "").strip()           # pull + clean form fields
         location = request.form.get("location", "").strip()
         description = request.form.get("description", "").strip()
+        latitude = request.form.get("latitude", "").strip()    # arrives as a STRING from the hidden input (or "" if user never clicked)
+        longitude = request.form.get("longitude", "").strip()
 
         if not hazard_type or not location:                # required-field validation
             flash("Please choose a hazard type and enter a location.")
             return redirect(url_for("report"))
+
+        lat = lng = None                                   # default: no coordinate
+        if latitude and longitude:                         # both present → user dropped a pin
+            try:
+                lat = float(latitude)                      # form values are strings; coords need to be real floats
+                lng = float(longitude)
+            except ValueError:                             # someone tampered with the hidden input — don't trust the client
+                flash("Invalid coordinates.")
+                return redirect(url_for("report"))
 
         file = request.files.get("photo")                  # files arrive in request.files, NOT request.form. key = the input's name attribute
         image_filename = None                              # default: no photo. stays None if nothing was uploaded
@@ -128,6 +142,8 @@ def report():
             location=location,
             description=description,
             image_filename=image_filename,                 # None if no photo, else the saved unique filename
+            latitude=lat,                                  # None if no pin dropped, else the clicked latitude
+            longitude=lng,
             author=current_user,                           # stamp the logged-in user. relationship fills user_id automatically
         )
         db.session.add(new_report)                         # stage (like git add)
@@ -214,9 +230,25 @@ def admin():
     all_reports = db.session.execute(stmt).scalars().all()
     return render_template("admin.html", reports=all_reports)
 
+
 @app.route("/map")                                         # the interactive map page — public, no login needed (like /reports)
 def map_view():                                            # named map_view, NOT map — `map` is a Python builtin; shadowing it is the same class of bug as your old reports/reports_store collision
-    return render_template("map.html")                     # just renders the template; no DB data passed yet — markers are hardcoded this session
+    stmt = db.select(Report).where(                        # only reports that HAVE coords — the rest can't be placed on a map
+        Report.latitude.is_not(None),                      # .is_not(None) = SQL `IS NOT NULL`. filter in the DB, not in Python
+        Report.longitude.is_not(None),
+    )
+    reports_with_coords = db.session.execute(stmt).scalars().all()
+
+    markers = [                                            # flatten ORM objects → plain dicts, ready for tojson in the template
+        {
+            "lat": r.latitude,
+            "lng": r.longitude,
+            "hazard_type": r.hazard_type,
+            "status": r.status,
+        }
+        for r in reports_with_coords
+    ]
+    return render_template("map.html", markers=markers)    # pass the list; template serializes it with the tojson filter
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@
     <!-- Leaflet's stylesheet. NOT optional — without it tiles misalign and the zoom controls look broken. loaded from the unpkg CDN -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
-    <!-- the map container. MUST have a height or the map renders as nothing — a div is 0px tall by default (your comprehension-check answer #5) -->
     <!-- the map container. height in vh = % of viewport → fills most of the screen and stays responsive on resize. (% wouldn't work — needs a sized parent) -->
     <div id="map" style="height: 85vh;"></div>
 
@@ -26,9 +25,14 @@
             attribution: "&copy; OpenStreetMap contributors",
         }).addTo(map);
 
-        // two sample markers from hardcoded coords — just to exercise the marker API
-        // NEXT session these get replaced by real reports pulled from the database
-        L.marker([28.4595, 77.0266]).addTo(map).bindPopup("Sample: pothole near Cyber City");
-        L.marker([28.4700, 77.0500]).addTo(map).bindPopup("Sample: broken streetlight");
+        // real reports from the DB. tojson serializes the Python list of dicts → a safe JS array (handles all escaping)
+        const reportMarkers = {{ markers | tojson }};
+
+        // loop in PURE JS — not Jinja emitting L.marker() calls. data crossed as data; JS builds the markers
+        reportMarkers.forEach(function (r) {
+            L.marker([r.lat, r.lng])
+                .addTo(map)
+                .bindPopup(r.hazard_type + " — " + r.status);   // popup shows what + current status
+        });
     </script>
 {% endblock %}
