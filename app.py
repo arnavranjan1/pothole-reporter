@@ -161,6 +161,14 @@ def reports():
     all_reports = db.session.execute(stmt).scalars().all()        # .scalars() → bare Report objects, not 1-tuples
     return render_template("reports.html", reports=all_reports)
 
+@app.route("/my-reports")                                  # a citizen's own reports — private, login-gated
+@login_required                                            # precondition: guarantees a real current_user.id exists before the query runs
+def my_reports():
+    stmt = db.select(Report).where(                        # the ownership filter — the whole point of this session
+        Report.user_id == current_user.id                  # == builds a SQL expression, not a Python bool. "rows whose owner is me"
+    ).order_by(Report.created_at.desc())                   # newest first, matching /reports and /admin
+    my = db.session.execute(stmt).scalars().all()          # .scalars() → bare Report objects, not 1-tuples. same idiom as your other list routes
+    return render_template("my_reports.html", reports=my)  # pass as `reports` so the template loop reads identically to reports.html
 
 @app.route("/register", methods=["GET", "POST"])
 def register():

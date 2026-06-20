@@ -15,6 +15,7 @@
         {# ===== login-aware nav. current_user is injected into every template by Flask-Login automatically ===== #}
         {% if current_user.is_authenticated %}              {# is_authenticated comes from UserMixin #}
             | <a href="{{ url_for('report') }}">Report a Hazard</a>
+            | <a href="{{ url_for('my_reports') }}">My Reports</a>   {# this user's own reports — login-gated, so it lives inside this block #}
             | <span>Hi, {{ current_user.username }}</span>
             {% if current_user.role == "admin" %}
                 | <a href="{{ url_for('admin') }}">Admin</a>  {# only admins see this link #}
