@@ -29,6 +29,7 @@ app.config["UPLOAD_FOLDER"] = "static/uploads"             # where photos land. 
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024         # 5 MB ceiling on the whole request body. server-side → client can't bypass it
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif"}         # allow-list of accepted image types. a set → fast membership check
+ALLOWED_STATUSES = {"Reported", "In Progress", "Fixed"}    # allow-list of valid lifecycle states. a set → fast membership check. same defense as ALLOWED_EXTENSIONS
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads folder on startup if missing. exist_ok=True → no crash if it already exists
 
@@ -237,6 +238,30 @@ def admin():
     stmt = db.select(Report).order_by(Report.created_at.desc())
     all_reports = db.session.execute(stmt).scalars().all()
     return render_template("admin.html", reports=all_reports)
+
+
+@app.route("/admin/report/<int:report_id>/status", methods=["POST"])  # state-changing → POST only. <int:..> validates+coerces the id at the routing layer
+@login_required                                            # must be logged in (gives us a real current_user)
+def update_status(report_id):                              # report_id arrives as a real int, courtesy of the <int:> converter
+    if current_user.role != "admin":                       # THE function-level auth check — the route defends itself, not relying on the hidden button
+        flash("Admins only.")                              # a forged citizen POST dies right here
+        return redirect(url_for("home"))
+
+    new_status = request.form.get("status", "").strip()    # the submitted target state, cleaned. arrives in request.form from the clicked button's value
+    if new_status not in ALLOWED_STATUSES:                 # allow-list wall — rejects status=banana and any other forged value
+        flash("Invalid status.")
+        return redirect(url_for("admin"))
+
+    report = db.session.get(Report, report_id)             # load the existing row by PK. same getter as load_user. None if no such id
+    if report is None:                                     # the id was a valid int but no such report exists (e.g. deleted) → don't crash
+        flash("Report not found.")
+        return redirect(url_for("admin"))
+
+    report.status = new_status                             # mutate the managed object — the ONE line that is the actual UPDATE. dirty-tracking notes it
+    db.session.commit()                                    # flush → ORM emits UPDATE reports SET status=... WHERE id=report_id
+
+    flash(f"Report #{report.id} marked '{new_status}'.")   # confirmation to the admin
+    return redirect(url_for("admin"))                       # PRG: redirect after POST so a refresh doesn't re-submit
 
 
 @app.route("/map")                                         # the interactive map page — public, no login needed (like /reports)

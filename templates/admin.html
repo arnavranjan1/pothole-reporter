@@ -8,6 +8,13 @@
         <div>
             <strong>{{ report.hazard_type }}</strong> @ {{ report.location }}
             <br>Status: {{ report.status }}
+            {# status-change controls — one tiny POST form, three submit buttons, each posting a different target status #}
+            <form method="POST" action="{{ url_for('update_status', report_id=report.id) }}" style="display:inline;">
+                {# each button shares name="status" but carries a different value → only the CLICKED button's value is sent → server reads request.form['status'] #}
+                <button type="submit" name="status" value="Reported">Reported</button>
+                <button type="submit" name="status" value="In Progress">In Progress</button>
+                <button type="submit" name="status" value="Fixed">Fixed</button>
+            </form>
             <!-- report.author is None for old reports → guard prevents a crash -->
             <br>Filed by: {{ report.author.username if report.author else "unknown" }}
             <br><small>{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
