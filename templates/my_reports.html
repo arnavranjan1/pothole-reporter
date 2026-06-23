@@ -10,7 +10,8 @@
         {# loop is identical to reports.html — same var name 'report', same dot access. the filtering already happened in the route #}
         {% for report in reports %}
             <li>
-                <strong>{{ report.hazard_type }}</strong> — {{ report.location }}
+                {# hazard type is now a link through to the full detail page. url_for builds /report/<id> so a route rename never breaks it #}
+                <strong><a href="{{ url_for('report_detail', report_id=report.id) }}">{{ report.hazard_type }}</a></strong> — {{ report.location }}
                 ({{ report.status }})   {# the lifecycle state — Reported / In Progress / Fixed — the thing you're here to track #}
                 {# no "Filed by" line — every report on this page is yours by definition #}
                 {% if report.description %}

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash   # core Flask: app, templating, request data, redirects, URL building, flash messages
+from flask import Flask, render_template, request, redirect, url_for, flash, abort   # + abort → emit a clean HTTP error (404) instead of rendering a blank page
 from flask_sqlalchemy import SQLAlchemy                    # the ORM extension — gives db.Model, db.session etc.
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship  # base class, type-hints, column definer, + relationship for FK convenience
 from sqlalchemy import ForeignKey                          # column-level constraint: value must match a PK in another table
@@ -96,6 +96,13 @@ class Report(db.Model):                                    # the reports table
     )
     author: Mapped["User | None"] = relationship(back_populates="reports")  # many-to-one: report.author = the User object (or None)
 
+    def filer_visible_to(self, viewer):                    # WHO filed this is private — only the owner or an admin may see it. lives on the model so every template asks the same question
+        if not viewer.is_authenticated:                    # logged-out visitors never see the filer
+            return False
+        if viewer.role == "admin":                         # admins see every filer
+            return True
+        return self.user_id == viewer.id                   # otherwise: only if THIS report is the viewer's own. self.user_id is None for old reports → False for non-admins
+
     def __repr__(self):
         return f"<Report {self.id} {self.hazard_type} @ {self.location}>"
 
@@ -173,6 +180,15 @@ def my_reports():
     ).order_by(Report.created_at.desc())                   # newest first, matching /reports and /admin
     my = db.session.execute(stmt).scalars().all()          # .scalars() → bare Report objects, not 1-tuples. same idiom as your other list routes
     return render_template("my_reports.html", reports=my)  # pass as `reports` so the template loop reads identically to reports.html
+
+
+@app.route("/report/<int:report_id>")                      # GET — view ONE report in full. <int:..> validates+coerces the id, same converter as update_status
+def report_detail(report_id):                              # report_id arrives as a real int. no POST, no mutation → no CSRF token needed on the links pointing here
+    report = db.session.get(Report, report_id)             # load the row by PK. same getter as load_user / update_status. None if no such id
+    if report is None:                                     # valid int but no such report → the user navigated to a URL with nothing behind it
+        abort(404)                                         # honest HTTP answer: "nothing exists here". NOT a flash+redirect — there's no page they came from
+    return render_template("report_detail.html", report=report)  # one object (not a list). the template asks report.filer_visible_to(current_user) itself
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():

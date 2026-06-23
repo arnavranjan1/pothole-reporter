@@ -6,7 +6,8 @@
 
     {% for report in reports %}
         <div>
-            <strong>{{ report.hazard_type }}</strong> @ {{ report.location }}
+            {# hazard type links through to the full detail page — same swap as the citizen list views #}
+            <strong><a href="{{ url_for('report_detail', report_id=report.id) }}">{{ report.hazard_type }}</a></strong> @ {{ report.location }}
             <br>Status: {{ report.status }}
             {# status-change controls — one tiny POST form, three submit buttons, each posting a different target status #}
             <form method="POST" action="{{ url_for('update_status', report_id=report.id) }}" style="display:inline;">
@@ -17,8 +18,13 @@
                 <button type="submit" name="status" value="In Progress">In Progress</button>
                 <button type="submit" name="status" value="Fixed">Fixed</button>
             </form>
-            <!-- report.author is None for old reports → guard prevents a crash -->
-            <br>Filed by: {{ report.author.username if report.author else "unknown" }}
+            {# same model rule — an admin always passes it, so admins still see every filer; consistency over a special-case #}
+            <br>Filed by:
+            {% if report.filer_visible_to(current_user) %}
+                {{ report.author.username if report.author else "unknown" }}
+            {% else %}
+                <em>hidden</em>
+            {% endif %}
             <br><small>{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
             {# thumbnail only if a photo exists. same ~ concat pattern as reports.html #}
             {% if report.image_filename %}
