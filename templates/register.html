@@ -5,6 +5,9 @@
     <h1>Create an account</h1>
 
     <form action="{{ url_for('register') }}" method="post">
+        {# CSRF token — without it this POST is rejected with a 400 before the route runs #}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         <label for="username">Username</label>
         <input type="text" name="username" id="username">
 

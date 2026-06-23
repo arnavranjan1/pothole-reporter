@@ -10,6 +10,9 @@
     {# enctype is REQUIRED for file uploads — without it the browser url-encodes the form and the file never arrives as a file part #}
     <form action= "{{url_for('report')}}" method="post" enctype="multipart/form-data">
 
+        {# CSRF token — rides the POST as a form field, proves this submit came from our own page (token works fine alongside file uploads) #}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         {# each field wrapped in a block div so label+input sit on their own line — stops everything flowing inline into one row #}
         <div style="margin-bottom: 1rem;">
             <label for="hazard_type">Hazard type</label><br>

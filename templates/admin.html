@@ -10,6 +10,8 @@
             <br>Status: {{ report.status }}
             {# status-change controls — one tiny POST form, three submit buttons, each posting a different target status #}
             <form method="POST" action="{{ url_for('update_status', report_id=report.id) }}" style="display:inline;">
+                {# CSRF token — sits INSIDE the loop so each report's form gets its own token. this is the route an attacker would forge → must be guarded #}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {# each button shares name="status" but carries a different value → only the CLICKED button's value is sent → server reads request.form['status'] #}
                 <button type="submit" name="status" value="Reported">Reported</button>
                 <button type="submit" name="status" value="In Progress">In Progress</button>

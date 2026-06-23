@@ -6,6 +6,7 @@ from datetime import datetime, timezone                    # for the created_at 
 
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user  # full Flask-Login toolkit
 from flask_migrate import Migrate                          # wraps Alembic → the `flask db ...` commands
+from flask_wtf import CSRFProtect                          # CSRF defense — issues + verifies the per-form token signed by secret_key
 from werkzeug.security import generate_password_hash, check_password_hash      # one-way password hashing (ships with Flask)
 
 import os                                                  # filesystem paths — building the save location, ensuring the folder exists
@@ -20,9 +21,10 @@ class Base(DeclarativeBase):                               # the declarative bas
 db = SQLAlchemy(model_class=Base)                          # the ORM gateway. not bound to an app yet (create-then-init pattern)
 login_manager = LoginManager()                             # central coordinator for login state. bound to app below
 migrate = Migrate()                                        # the migration engine. bound to app below
+csrf = CSRFProtect()                                       # CSRF guard. create-then-init like the others — bound to app below
 
 app = Flask(__name__)                                      # the application object
-app.secret_key = "dev-secret-change-me"                    # signs the session cookie — now load-bearing for auth security
+app.secret_key = "dev-secret-change-me"                    # signs the session cookie AND the CSRF tokens — now load-bearing in TWO ways
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://localhost:5432/pothole_db"  # which Postgres db to talk to
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False       # silences an unused memory-leaking feature
 app.config["UPLOAD_FOLDER"] = "static/uploads"             # where photos land. under static/ so Flask serves them for free
@@ -36,6 +38,7 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads 
 db.init_app(app)                                           # bind db to this app
 login_manager.init_app(app)                                # bind the login manager to this app
 migrate.init_app(app, db)                                  # bind migrate — needs both app and db (it inspects models)
+csrf.init_app(app)                                         # bind CSRF — now every POST/PUT/PATCH/DELETE must carry a valid token; GET stays exempt
 
 login_manager.login_view = "login"                         # when @login_required blocks someone, redirect to the route named "login"
 
