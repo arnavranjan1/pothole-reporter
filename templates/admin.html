@@ -4,6 +4,25 @@
 {% block content %}
     <h1>All reports (admin)</h1>
 
+    {# status filter bar — GET links. each link CARRIES the active hazard filter (active_hazard) so switching status doesn't wipe the hazard filter. url_for joins them with & and drops empties #}
+    <p>
+        Status:
+        {# "All" = no status filter → active when active_status is empty. still carries the hazard filter so "All status" keeps the hazard narrowing #}
+        {% if active_status %}<a href="{{ url_for('admin', hazard_type=active_hazard) }}">All</a>{% else %}<strong>All</strong>{% endif %}
+        {% for s in ["Reported", "In Progress", "Fixed"] %}
+            | {% if active_status == s %}<strong>{{ s }}</strong>{% else %}<a href="{{ url_for('admin', status=s, hazard_type=active_hazard) }}">{{ s }}</a>{% endif %}
+        {% endfor %}
+    </p>
+
+    {# hazard filter bar — same idea, perpendicular axis. loop (value, label) pairs: link uses the machine value, text shows the friendly label. each link carries active_status so the two filters compose #}
+    <p>
+        Hazard:
+        {% if active_hazard %}<a href="{{ url_for('admin', status=active_status) }}">All</a>{% else %}<strong>All</strong>{% endif %}
+        {% for value, label in [("pothole", "Pothole"), ("streetlight", "Broken streetlight"), ("garbage", "Garbage"), ("flooding", "Flooding")] %}
+            | {% if active_hazard == value %}<strong>{{ label }}</strong>{% else %}<a href="{{ url_for('admin', status=active_status, hazard_type=value) }}">{{ label }}</a>{% endif %}
+        {% endfor %}
+    </p>
+
     {% for report in reports %}
         <div>
             {# hazard type links through to the full detail page — same swap as the citizen list views #}

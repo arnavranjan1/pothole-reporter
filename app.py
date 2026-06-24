@@ -32,7 +32,7 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024         # 5 MB ceiling on the
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif"}         # allow-list of accepted image types. a set → fast membership check
 ALLOWED_STATUSES = {"Reported", "In Progress", "Fixed"}    # allow-list of valid lifecycle states. a set → fast membership check. same defense as ALLOWED_EXTENSIONS
-
+ALLOWED_HAZARDS = {"pothole", "streetlight", "garbage", "flooding"}  # allow-list of valid hazard types — the exact <select> values from report.html. validates the second filter, same defense as ALLOWED_STATUSES
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads folder on startup if missing. exist_ok=True → no crash if it already exists
 
 db.init_app(app)                                           # bind db to this app
@@ -245,8 +245,6 @@ def logout():
     logout_user()                                          # clears the user id from the cookie
     flash("You've been logged out.")
     return redirect(url_for("home"))
-
-
 @app.route("/admin")
 @login_required                                            # must be logged in...
 def admin():
@@ -254,10 +252,28 @@ def admin():
         flash("Admins only.")
         return redirect(url_for("home"))
 
-    stmt = db.select(Report).order_by(Report.created_at.desc())
-    all_reports = db.session.execute(stmt).scalars().all()
-    return render_template("admin.html", reports=all_reports)
+    status_filter = request.args.get("status", "").strip()  # read the status filter from the QUERY STRING (?status=...), NOT the form body. "" if absent. same .get(key, default) as request.form
+    hazard_filter = request.args.get("hazard_type", "").strip()  # read the hazard filter from the query string too (?hazard_type=...). second independent optional filter
 
+    stmt = db.select(Report).order_by(Report.created_at.desc())  # base query — every report, newest first. the unchanged default when no valid filter is present
+
+    if status_filter in ALLOWED_STATUSES:                  # allow-list wall — the SAME set that guards update_status. junk like ?status=banana fails here
+        stmt = stmt.where(Report.status == status_filter)  # .where() returns a NEW stmt with the WHERE bolted on (immutable, like String.trim()) → reassign, don't mutate
+    else:
+        status_filter = ""                                 # normalise junk/empty → "" so the template treats "no valid filter" as "All selected"
+
+    if hazard_filter in ALLOWED_HAZARDS:                   # second independent if — NOT elif. both filters can apply at once
+        stmt = stmt.where(Report.hazard_type == hazard_filter)  # chaining a second .where() → SQL ANDs the conditions: WHERE status=... AND hazard_type=...
+    else:
+        hazard_filter = ""                                 # same normalise → "" means "All" for the hazard bar
+
+    all_reports = db.session.execute(stmt).scalars().all()
+    return render_template(
+        "admin.html",
+        reports=all_reports,
+        active_status=status_filter,                       # which status filter is live (or "") → status bar highlights it
+        active_hazard=hazard_filter,                       # which hazard filter is live (or "") → hazard bar highlights it
+    )
 
 @app.route("/admin/report/<int:report_id>/status", methods=["POST"])  # state-changing → POST only. <int:..> validates+coerces the id at the routing layer
 @login_required                                            # must be logged in (gives us a real current_user)
