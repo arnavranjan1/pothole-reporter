@@ -5,15 +5,25 @@
     <h1>Create an account</h1>
 
     <form action="{{ url_for('register') }}" method="post">
-        {# CSRF token — without it this POST is rejected with a 400 before the route runs #}
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {# hidden_tag() emits the CSRF token #}
+        {{ form.hidden_tag() }}
 
-        <label for="username">Username</label>
-        <input type="text" name="username" id="username">
+        <div style="margin-bottom: 1rem;">
+            {{ form.username.label }}<br>
+            {{ form.username() }}
+            {% for error in form.username.errors %}    {# "That username is already taken." surfaces HERE via validate_username #}
+                <span style="color: red;">{{ error }}</span>
+            {% endfor %}
+        </div>
 
-        <label for="password">Password</label>
-        <input type="password" name="password" id="password">   <!-- type="password" masks the input on screen -->
+        <div style="margin-bottom: 1rem;">
+            {{ form.password.label }}<br>
+            {{ form.password() }}
+            {% for error in form.password.errors %}
+                <span style="color: red;">{{ error }}</span>
+            {% endfor %}
+        </div>
 
-        <button type="submit">Register</button>
+        {{ form.submit() }}
     </form>
 {% endblock %}

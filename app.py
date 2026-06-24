@@ -9,6 +9,8 @@ from flask_migrate import Migrate                          # wraps Alembic → t
 from flask_wtf import CSRFProtect                          # CSRF defense — issues + verifies the per-form token signed by secret_key
 from werkzeug.security import generate_password_hash, check_password_hash      # one-way password hashing (ships with Flask)
 
+from forms import LoginForm, RegistrationForm, ReportForm  # the declarative form classes (forms.py)
+
 import os                                                  # filesystem paths — building the save location, ensuring the folder exists
 from uuid import uuid4                                     # random token to prefix filenames → kills collisions
 from werkzeug.utils import secure_filename                 # sanitizes the client's filename → kills path traversal
@@ -30,9 +32,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False       # silences an unused 
 app.config["UPLOAD_FOLDER"] = "static/uploads"             # where photos land. under static/ so Flask serves them for free
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024         # 5 MB ceiling on the whole request body. server-side → client can't bypass it
 
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif"}         # allow-list of accepted image types. a set → fast membership check
-ALLOWED_STATUSES = {"Reported", "In Progress", "Fixed"}    # allow-list of valid lifecycle states. a set → fast membership check. same defense as ALLOWED_EXTENSIONS
-ALLOWED_HAZARDS = {"pothole", "streetlight", "garbage", "flooding"}  # allow-list of valid hazard types — the exact <select> values from report.html. validates the second filter, same defense as ALLOWED_STATUSES
+ALLOWED_STATUSES = {"Reported", "In Progress", "Fixed"}    # allow-list of valid lifecycle states. guards /admin filter + update_status
+ALLOWED_HAZARDS = {"pothole", "streetlight", "garbage", "flooding"}  # allow-list for the /admin query-string filter (NOT the report form — that's now ReportForm.choices)
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads folder on startup if missing. exist_ok=True → no crash if it already exists
 
 db.init_app(app)                                           # bind db to this app
@@ -41,10 +42,6 @@ migrate.init_app(app, db)                                  # bind migrate — ne
 csrf.init_app(app)                                         # bind CSRF — now every POST/PUT/PATCH/DELETE must carry a valid token; GET stays exempt
 
 login_manager.login_view = "login"                         # when @login_required blocks someone, redirect to the route named "login"
-
-
-def allowed_file(filename):                                # is this a file type we accept?
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS  # split off extension, lowercase, check allow-list
 
 
 @login_manager.user_loader                                 # registers THE callback Flask-Login calls on every request
@@ -115,43 +112,29 @@ def home():
 @app.route("/report", methods=["GET", "POST"])
 @login_required                                            # must be logged in to file a report
 def report():
-    if request.method == "POST":
-        hazard_type = request.form.get("hazard_type", "").strip()           # pull + clean form fields
-        location = request.form.get("location", "").strip()
-        description = request.form.get("description", "").strip()
-        latitude = request.form.get("latitude", "").strip()    # arrives as a STRING from the hidden input (or "" if user never clicked)
-        longitude = request.form.get("longitude", "").strip()
-
-        if not hazard_type or not location:                # required-field validation
-            flash("Please choose a hazard type and enter a location.")
-            return redirect(url_for("report"))
-
+    form = ReportForm()                                    # bind to request data automatically (reads request.form + request.files)
+    if form.validate_on_submit():                          # True only when: POST + CSRF valid + all validators pass
         lat = lng = None                                   # default: no coordinate
-        if latitude and longitude:                         # both present → user dropped a pin
+        if form.latitude.data and form.longitude.data:     # both present → user dropped a pin (HiddenField gives strings)
             try:
-                lat = float(latitude)                      # form values are strings; coords need to be real floats
-                lng = float(longitude)
-            except ValueError:                             # someone tampered with the hidden input — don't trust the client
+                lat = float(form.latitude.data)            # strings → real floats. still a server-side tamper check
+                lng = float(form.longitude.data)
+            except ValueError:                             # someone forged the hidden input — don't trust the client
                 flash("Invalid coordinates.")
                 return redirect(url_for("report"))
 
-        file = request.files.get("photo")                  # files arrive in request.files, NOT request.form. key = the input's name attribute
-        image_filename = None                              # default: no photo. stays None if nothing was uploaded
-
-        if file and file.filename:                         # a file object AND a non-empty filename → user actually chose something
-            if not allowed_file(file.filename):            # reject non-images BEFORE touching disk. server-side, don't trust the client
-                flash("Photo must be a JPG, PNG, or GIF.")
-                return redirect(url_for("report"))
-
+        file = form.photo.data                             # FileStorage object (or None) — WTForms already validated the extension
+        image_filename = None                              # default: no photo
+        if file and file.filename:                         # a real upload happened
             safe_name = secure_filename(file.filename)     # strip slashes/.. → defuses path traversal
             unique_name = f"{uuid4().hex}_{safe_name}"     # prepend a random token → two uploads can't collide
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], unique_name))  # stream the bytes to disk (≈ Java's transferTo)
+            file.save(os.path.join(app.config["UPLOAD_FOLDER"], unique_name))  # stream the bytes to disk
             image_filename = unique_name                   # store ONLY the filename in the DB
 
         new_report = Report(
-            hazard_type=hazard_type,
-            location=location,
-            description=description,
+            hazard_type=form.hazard_type.data,             # .data = the validated, filtered value off the field
+            location=form.location.data,
+            description=form.description.data,
             image_filename=image_filename,                 # None if no photo, else the saved unique filename
             latitude=lat,                                  # None if no pin dropped, else the clicked latitude
             longitude=lng,
@@ -161,9 +144,9 @@ def report():
         db.session.commit()                                # write to Postgres (like git commit)
 
         flash("Thanks! Your report has been submitted.")
-        return redirect(url_for("home"))
+        return redirect(url_for("home"))                   # PRG on SUCCESS
 
-    return render_template("report.html")
+    return render_template("report.html", form=form)       # GET or failed POST → re-render WITH the form (errors + values intact)
 
 
 @app.route("/reports")                                     # public list of all reports
@@ -192,51 +175,32 @@ def report_detail(report_id):                              # report_id arrives a
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")        # don't strip passwords — spaces may be intentional
-
-        if not username or not password:                   # presence check
-            flash("Username and password are required.")
-            return redirect(url_for("register"))
-
-        existing = db.session.scalar(                      # is this username taken?
-            db.select(User).where(User.username == username)
-        )
-        if existing:
-            flash("That username is already taken.")
-            return redirect(url_for("register"))
-
-        user = User(username=username)                     # role defaults to "citizen"
-        user.set_password(password)                        # hash + store, never the raw password
+    form = RegistrationForm()
+    if form.validate_on_submit():                          # includes validate_username → "taken" check lives on the form now
+        user = User(username=form.username.data)           # role defaults to "citizen"
+        user.set_password(form.password.data)              # hash + store, never the raw password
         db.session.add(user)
         db.session.commit()
-
         flash("Account created — please log in.")
         return redirect(url_for("login"))
-
-    return render_template("register.html")
+    return render_template("register.html", form=form)     # re-render on failure: "username taken" / "too short" shown inline
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-
+    form = LoginForm()
+    if form.validate_on_submit():                          # only checks both fields present + CSRF valid
         user = db.session.scalar(                          # look up user by name
-            db.select(User).where(User.username == username)
+            db.select(User).where(User.username == form.username.data)
         )
-
-        if user is None or not user.check_password(password):    # combined check — deliberately vague for security
+        if user is None or not user.check_password(form.password.data):   # AUTH check — stays on route, deliberately vague
             flash("Invalid username or password.")
             return redirect(url_for("login"))
 
         login_user(user)                                   # writes user id into the signed session cookie
         flash(f"Welcome back, {user.username}!")
         return redirect(url_for("home"))
-
-    return render_template("login.html")
+    return render_template("login.html", form=form)
 
 
 @app.route("/logout")

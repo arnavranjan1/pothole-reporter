@@ -8,48 +8,52 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
     {# enctype is REQUIRED for file uploads — without it the browser url-encodes the form and the file never arrives as a file part #}
-    <form action= "{{url_for('report')}}" method="post" enctype="multipart/form-data">
+    <form action="{{ url_for('report') }}" method="post" enctype="multipart/form-data">
 
-        {# CSRF token — rides the POST as a form field, proves this submit came from our own page (token works fine alongside file uploads) #}
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {# hidden_tag() emits the CSRF token AND the latitude/longitude HiddenFields in one call #}
+        {{ form.hidden_tag() }}
 
-        {# each field wrapped in a block div so label+input sit on their own line — stops everything flowing inline into one row #}
+        {# each field wrapped in a block div so label+input sit on their own line #}
         <div style="margin-bottom: 1rem;">
-            <label for="hazard_type">Hazard type</label><br>
-            <select name="hazard_type" id="hazard_type">
-                <option value="">-- Select Option --</option>
-                <option value="pothole">Pothole</option>
-                <option value="streetlight">Broken streetlight</option>
-                <option value="garbage">Garbage</option>
-                <option value="flooding">Flooding</option>
-            </select>
+            {{ form.hazard_type.label }}<br>
+            {{ form.hazard_type() }}
+            {% for error in form.hazard_type.errors %}
+                <span style="color: red;">{{ error }}</span>
+            {% endfor %}
         </div>
 
         <div style="margin-bottom: 1rem;">
-            <label for="location">Location</label><br>
-            <input type="text" name="location" id="location">
+            {{ form.location.label }}<br>
+            {{ form.location() }}
+            {% for error in form.location.errors %}
+                <span style="color: red;">{{ error }}</span>
+            {% endfor %}
         </div>
 
         <div style="margin-bottom: 1rem;">
-            <label for="description">Description</label><br>
-            <textarea name="description" id="description"></textarea>
+            {{ form.description.label }}<br>
+            {{ form.description() }}
+            {% for error in form.description.errors %}
+                <span style="color: red;">{{ error }}</span>
+            {% endfor %}
         </div>
 
-        <!-- name="photo" MUST match request.files.get("photo") in the route. accept is only a client hint — server-side allowed_file() is the real gate -->
+        {# accept="image/*" passed as a render kwarg — only a client hint; FileAllowed is the real server-side gate #}
         <div style="margin-bottom: 1rem;">
-            <label for="photo">Photo (optional)</label><br>
-            <input type="file" name="photo" id="photo" accept="image/*">
+            {{ form.photo.label }}<br>
+            {{ form.photo(accept="image/*") }}
+            {% for error in form.photo.errors %}
+                <span style="color: red;">{{ error }}</span>
+            {% endfor %}
         </div>
 
-        <!-- click-to-drop-pin map, now full-width and below all the fields. height in vh fills most of the viewport -->
+        <!-- click-to-drop-pin map, full-width below the fields -->
         <label>Pin the location (click on the map)</label>
         <div id="pickerMap" style="height: 70vh; width: 100%;"></div>
 
-        <!-- the bridge: JS writes the clicked coords into these, they ride the POST as request.form fields -->
-        <input type="hidden" name="latitude"  id="latitude">
-        <input type="hidden" name="longitude" id="longitude">
+        {# NOTE: latitude/longitude hidden inputs are emitted by hidden_tag() above — the JS finds them by id #}
 
-        <button type="submit" style="margin-top: 1rem;">Submit report</button>
+        {{ form.submit(style="margin-top: 1rem;") }}
     </form>
 
     <!-- Leaflet's JS. must load BEFORE our script. sits after the #pickerMap div so the div exists when we bind to it -->
