@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, abort   # + abort → emit a clean HTTP error (404) instead of rendering a blank page
 from flask_sqlalchemy import SQLAlchemy                    # the ORM extension — gives db.Model, db.session etc.
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship  # base class, type-hints, column definer, + relationship for FK convenience
-from sqlalchemy import ForeignKey                          # column-level constraint: value must match a PK in another table
+from sqlalchemy import ForeignKey, or_                     # ForeignKey: FK constraint. or_: combine conditions with SQL OR (for searching ACROSS two columns)
 from datetime import datetime, timezone                    # for the created_at timestamp
 
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user  # full Flask-Login toolkit
@@ -218,6 +218,8 @@ def admin():
 
     status_filter = request.args.get("status", "").strip()  # read the status filter from the QUERY STRING (?status=...), NOT the form body. "" if absent. same .get(key, default) as request.form
     hazard_filter = request.args.get("hazard_type", "").strip()  # read the hazard filter from the query string too (?hazard_type=...). second independent optional filter
+    search_query = request.args.get("q", "").strip()        # the SEARCH term off the query string (?q=...). "" if absent. third independent narrowing
+    page = request.args.get("page", 1, type=int)            # which page to show. type=int coerces "3"→3 AND falls back to 1 on junk like ?page=abc — same allow-list spirit as the filters
 
     stmt = db.select(Report).order_by(Report.created_at.desc())  # base query — every report, newest first. the unchanged default when no valid filter is present
 
@@ -231,12 +233,27 @@ def admin():
     else:
         hazard_filter = ""                                 # same normalise → "" means "All" for the hazard bar
 
-    all_reports = db.session.execute(stmt).scalars().all()
+    if search_query:                                       # only narrow if a term was actually typed — empty search = no WHERE added (show everything)
+        pattern = f"%{search_query}%"                      # % = SQL wildcard either side → substring match anywhere in the column, not exact equality
+        stmt = stmt.where(or_(                             # one .where() holding an OR → match in EITHER column. (chained .where()s would AND, which we DON'T want here)
+            Report.description.ilike(pattern),             # ILIKE = case-insensitive LIKE. NULL descriptions simply don't match — no error, no crash
+            Report.location.ilike(pattern),                # same term, second column. a hit in either is enough
+        ))                                                 # the whole or_(...) becomes one bracketed condition, AND-ed onto any status/hazard WHERE already present
+
+    pagination = db.paginate(                              # the swap: instead of .execute(stmt).scalars().all() (every row), slice in the DB
+        stmt,                                              # the fully-composed statement — all filters already baked in
+        page=page,                                         # which slice
+        per_page=10,                                       # 10 rows per page → emits LIMIT 10 OFFSET (page-1)*10, plus a COUNT(*) for total page math
+        error_out=False,                                   # ?page=999 → empty page object, NOT a 404. graceful instead of crashing
+    )
+
     return render_template(
         "admin.html",
-        reports=all_reports,
+        reports=pagination.items,                          # ONLY this page's slice (≤10 Report objects) — the .items list off the Pagination object
+        pagination=pagination,                             # the whole Pagination object → the partial reads .has_prev / .pages / .iter_pages() etc
         active_status=status_filter,                       # which status filter is live (or "") → status bar highlights it
         active_hazard=hazard_filter,                       # which hazard filter is live (or "") → hazard bar highlights it
+        active_q=search_query,                             # echo the search term back → fills the box AND rides along in every filter link
     )
 
 @app.route("/admin/report/<int:report_id>/status", methods=["POST"])  # state-changing → POST only. <int:..> validates+coerces the id at the routing layer

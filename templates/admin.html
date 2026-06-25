@@ -4,22 +4,32 @@
 {% block content %}
     <h1>All reports (admin)</h1>
 
-    {# status filter bar — GET links. each link CARRIES the active hazard filter (active_hazard) so switching status doesn't wipe the hazard filter. url_for joins them with & and drops empties #}
+    {# search box — a GET form (search is a READ → no POST, no CSRF token needed; GET is CSRF-exempt anyway). #}
+    {# submitting builds the query string from these inputs. NO page input → page absent → route defaults to 1 → a new search RESETS to page 1. #}
+    {# active_status / active_hazard ride along as hidden inputs so searching doesn't WIPE the live filters. #}
+    <form method="GET" action="{{ url_for('admin') }}">
+        <input type="text" name="q" value="{{ active_q }}" placeholder="Search description or location">
+        {% if active_status %}<input type="hidden" name="status" value="{{ active_status }}">{% endif %}
+        {% if active_hazard %}<input type="hidden" name="hazard_type" value="{{ active_hazard }}">{% endif %}
+        <button type="submit">Search</button>
+        {% if active_q %}<a href="{{ url_for('admin', status=active_status, hazard_type=active_hazard) }}">clear</a>{% endif %}  {# clear drops q, keeps the filters #}
+    </form>
+
+    {# status filter bar — GET links. each link now CARRIES active_hazard AND active_q so switching status wipes neither. page is dropped → switching filter resets to page 1. #}
     <p>
         Status:
-        {# "All" = no status filter → active when active_status is empty. still carries the hazard filter so "All status" keeps the hazard narrowing #}
-        {% if active_status %}<a href="{{ url_for('admin', hazard_type=active_hazard) }}">All</a>{% else %}<strong>All</strong>{% endif %}
+        {% if active_status %}<a href="{{ url_for('admin', hazard_type=active_hazard, q=active_q) }}">All</a>{% else %}<strong>All</strong>{% endif %}
         {% for s in ["Reported", "In Progress", "Fixed"] %}
-            | {% if active_status == s %}<strong>{{ s }}</strong>{% else %}<a href="{{ url_for('admin', status=s, hazard_type=active_hazard) }}">{{ s }}</a>{% endif %}
+            | {% if active_status == s %}<strong>{{ s }}</strong>{% else %}<a href="{{ url_for('admin', status=s, hazard_type=active_hazard, q=active_q) }}">{{ s }}</a>{% endif %}
         {% endfor %}
     </p>
 
-    {# hazard filter bar — same idea, perpendicular axis. loop (value, label) pairs: link uses the machine value, text shows the friendly label. each link carries active_status so the two filters compose #}
+    {# hazard filter bar — same idea, perpendicular axis. each link carries active_status AND active_q so all three compose. page dropped → reset to 1. #}
     <p>
         Hazard:
-        {% if active_hazard %}<a href="{{ url_for('admin', status=active_status) }}">All</a>{% else %}<strong>All</strong>{% endif %}
+        {% if active_hazard %}<a href="{{ url_for('admin', status=active_status, q=active_q) }}">All</a>{% else %}<strong>All</strong>{% endif %}
         {% for value, label in [("pothole", "Pothole"), ("streetlight", "Broken streetlight"), ("garbage", "Garbage"), ("flooding", "Flooding")] %}
-            | {% if active_hazard == value %}<strong>{{ label }}</strong>{% else %}<a href="{{ url_for('admin', status=active_status, hazard_type=value) }}">{{ label }}</a>{% endif %}
+            | {% if active_hazard == value %}<strong>{{ label }}</strong>{% else %}<a href="{{ url_for('admin', status=active_status, hazard_type=value, q=active_q) }}">{{ label }}</a>{% endif %}
         {% endfor %}
     </p>
 
@@ -51,7 +61,10 @@
             {% endif %}
         </div>
         <hr>
-    {% else %}                                              <!-- runs only if the list is empty -->
-        <p>No reports yet.</p>
+    {% else %}                                              <!-- runs only if THIS page's slice is empty -->
+        <p>No reports match.</p>                            <!-- was "No reports yet" — now it can also mean "filters/search excluded everything" -->
     {% endfor %}
+
+    {# pagination controls — the reusable partial reads `pagination` + request.args itself. #}
+    {% include "_pagination.html" %}
 {% endblock %}
