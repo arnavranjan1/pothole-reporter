@@ -1,0 +1,43 @@
+/* ===== flash messages — the whole point of categorizing them: colour by severity ===== */
+.flashes {
+    list-style: none;          /* drop the bullet points */
+    padding: 0;
+    margin: 0 0 1rem 0;
+}
+
+.flash {
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+}
+
+.flash-success {               /* good news → green */
+    background: #e6f4ea;
+    border-color: #b7dfc3;
+    color: #1e5631;
+}
+
+.flash-error {                 /* bad news → red */
+    background: #fdecea;
+    border-color: #f5c6c0;
+    color: #8a1c12;
+}
+
+.flash-info {                  /* neutral notice (e.g. logged out) → blue/grey */
+    background: #e8f0fe;
+    border-color: #c2d4f5;
+    color: #1a3e72;
+}
+
+/* ===== error pages — centred, calm, not alarming ===== */
+.error-page {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.error-page h1 {
+    font-size: 4rem;
+    margin: 0;
+    color: #444;
+}

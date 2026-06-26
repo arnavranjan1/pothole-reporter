@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- adjusts for mobile -->
     <title> {% block title %} Pothole Reporter {% endblock %} </title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">  <!-- our first stylesheet. url_for('static', ...) builds the path → survives a subpath deploy, unlike hardcoding /static/... -->
 </head>
 <body>
     <nav>
@@ -29,15 +30,17 @@
     </nav>
     <hr> <!-- creates horizontal line -->
     <main>
-        {% with messages = get_flashed_messages() %}
+        {# ===== flash messages, now category-aware. with_categories=true → each item is a (category, message) TUPLE, not a bare string ===== #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <ul class="flashes">
-                    {% for message in messages %}
-                        <li>{{ message }}</li>
+                    {% for category, message in messages %}      {# unpack the tuple: category drives the CSS class, message is the text #}
+                        <li class="flash flash-{{ category }}">{{ message }}</li>  {# flash-success / flash-error / flash-info → CSS colours each #}
                     {% endfor %}
                 </ul>
             {% endif %}
         {% endwith %}
+        {# ===== end flash messages ===== #}
         {% block content %}{% endblock %}
     </main>
 </body>

@@ -118,7 +118,7 @@ def report():
                 lat = float(form.latitude.data)            # strings → real floats. still a server-side tamper check
                 lng = float(form.longitude.data)
             except ValueError:                             # someone forged the hidden input — don't trust the client
-                flash("Invalid coordinates.")
+                flash("Invalid coordinates.", "error")     # CATEGORY: bad input → red
                 return redirect(url_for("report"))
 
         file = form.photo.data                             # FileStorage object (or None) — WTForms already validated the extension
@@ -141,7 +141,7 @@ def report():
         db.session.add(new_report)                         # stage (like git add)
         db.session.commit()                                # write to Postgres (like git commit)
 
-        flash("Thanks! Your report has been submitted.")
+        flash("Thanks! Your report has been submitted.", "success")  # CATEGORY: success → green
         return redirect(url_for("home"))                   # PRG on SUCCESS
 
     return render_template("report.html", form=form)       # GET or failed POST → re-render WITH the form (errors + values intact)
@@ -188,7 +188,7 @@ def my_reports():
 def report_detail(report_id):                              # report_id arrives as a real int. no POST, no mutation → no CSRF token needed on the links pointing here
     report = db.session.get(Report, report_id)             # load the row by PK. same getter as load_user / update_status. None if no such id
     if report is None:                                     # valid int but no such report → the user navigated to a URL with nothing behind it
-        abort(404)                                         # honest HTTP answer: "nothing exists here". NOT a flash+redirect — there's no page they came from
+        abort(404)                                         # honest HTTP answer: "nothing exists here". routes through the @app.errorhandler(404) below
     return render_template("report_detail.html", report=report)  # one object (not a list). the template asks report.filer_visible_to(current_user) itself
 
 
@@ -200,7 +200,7 @@ def register():
         user.set_password(form.password.data)              # hash + store, never the raw password
         db.session.add(user)
         db.session.commit()
-        flash("Account created — please log in.")
+        flash("Account created — please log in.", "success")  # CATEGORY: success → green
         return redirect(url_for("login"))
     return render_template("register.html", form=form)     # re-render on failure: "username taken" / "too short" shown inline
 
@@ -213,11 +213,11 @@ def login():
             db.select(User).where(User.username == form.username.data)
         )
         if user is None or not user.check_password(form.password.data):   # AUTH check — stays on route, deliberately vague
-            flash("Invalid username or password.")
+            flash("Invalid username or password.", "error")   # CATEGORY: failed auth → red
             return redirect(url_for("login"))
 
         login_user(user)                                   # writes user id into the signed session cookie
-        flash(f"Welcome back, {user.username}!")
+        flash(f"Welcome back, {user.username}!", "success")  # CATEGORY: success → green
         return redirect(url_for("home"))
     return render_template("login.html", form=form)
 
@@ -226,13 +226,13 @@ def login():
 @login_required                                            # can't log out if not logged in
 def logout():
     logout_user()                                          # clears the user id from the cookie
-    flash("You've been logged out.")
+    flash("You've been logged out.", "info")               # CATEGORY: neutral notice → blue/grey. not success, not failure
     return redirect(url_for("home"))
 @app.route("/admin")
 @login_required                                            # must be logged in...
 def admin():
     if current_user.role != "admin":                       # ...AND an admin. citizens bounced
-        flash("Admins only.")
+        flash("Admins only.", "error")                     # CATEGORY: access denied → red
         return redirect(url_for("home"))
 
     status_filter = request.args.get("status", "").strip()  # read the status filter from the QUERY STRING (?status=...), NOT the form body. "" if absent. same .get(key, default) as request.form
@@ -279,23 +279,23 @@ def admin():
 @login_required                                            # must be logged in (gives us a real current_user)
 def update_status(report_id):                              # report_id arrives as a real int, courtesy of the <int:> converter
     if current_user.role != "admin":                       # THE function-level auth check — the route defends itself, not relying on the hidden button
-        flash("Admins only.")                              # a forged citizen POST dies right here
+        flash("Admins only.", "error")                     # CATEGORY: a forged citizen POST dies right here → red
         return redirect(url_for("home"))
 
     new_status = request.form.get("status", "").strip()    # the submitted target state, cleaned. arrives in request.form from the clicked button's value
     if new_status not in ALLOWED_STATUSES:                 # allow-list wall — rejects status=banana and any other forged value. now imported from config
-        flash("Invalid status.")
+        flash("Invalid status.", "error")                  # CATEGORY: forged/bad value → red
         return redirect(url_for("admin"))
 
     report = db.session.get(Report, report_id)             # load the existing row by PK. same getter as load_user. None if no such id
     if report is None:                                     # the id was a valid int but no such report exists (e.g. deleted) → don't crash
-        flash("Report not found.")
+        flash("Report not found.", "error")                # CATEGORY: target gone → red
         return redirect(url_for("admin"))
 
     report.status = new_status                             # mutate the managed object — the ONE line that is the actual UPDATE. dirty-tracking notes it
     db.session.commit()                                    # flush → ORM emits UPDATE reports SET status=... WHERE id=report_id
 
-    flash(f"Report #{report.id} marked '{new_status}'.")   # confirmation to the admin
+    flash(f"Report #{report.id} marked '{new_status}'.", "success")  # CATEGORY: state change succeeded → green
     return redirect(url_for("admin"))                       # PRG: redirect after POST so a refresh doesn't re-submit
 
 
@@ -317,6 +317,18 @@ def map_view():                                            # named map_view, NOT
         for r in reports_with_coords
     ]
     return render_template("map.html", markers=markers)    # pass the list; template serializes it with the tojson filter
+
+
+# ===== error handlers — app-wide, registered once. catch a whole CLASS of error across every route =====
+
+@app.errorhandler(404)                                     # fires on any 404 anywhere: a bad URL, or your explicit abort(404) in report_detail
+def not_found(error):                                      # Flask passes the error object in (unused here, but it's part of the signature)
+    return render_template("404.html"), 404                # the TUPLE: (body, status_code). the , 404 keeps the HTTP status honest — page says "not found" AND the status agrees
+
+@app.errorhandler(500)                                     # fires when an unhandled exception kills a request mid-flight
+def server_error(error):                                   # the crash happened somewhere in a view; we clean up after it
+    db.session.rollback()                                  # CRITICAL: a mid-request crash may have left a half-done transaction. discard it so the NEXT request gets a clean session
+    return render_template("500.html"), 500                # same tuple discipline: honest 500 status alongside the friendly page
 
 
 if __name__ == "__main__":
