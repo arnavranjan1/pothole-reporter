@@ -31,6 +31,8 @@
             </li>
         {% endfor %}
         </ul>
+        {# the reusable page control — same partial as /admin. reads request.args + request.endpoint, so it builds correct ?page=N links here with nothing to configure #}
+        {% include "_pagination.html" %}
     {% else %}
         {# the empty state, with a link to the form to create the first one #}
         <p>No reports yet. <a href="{{ url_for('report') }}">Report the first hazard.</a></p>

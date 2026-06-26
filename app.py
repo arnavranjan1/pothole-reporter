@@ -151,18 +151,39 @@ def report():
 
 @app.route("/reports")                                     # public list of all reports
 def reports():
+    page = request.args.get("page", 1, type=int)                  # which page to show. type=int coerces "3"→3 AND falls back to 1 on junk like ?page=abc — same idiom as /admin
     stmt = db.select(Report).order_by(Report.created_at.desc())   # all reports, newest first
-    all_reports = db.session.execute(stmt).scalars().all()        # .scalars() → bare Report objects, not 1-tuples
-    return render_template("reports.html", reports=all_reports)
+    pagination = db.paginate(                                      # the swap: instead of .execute(stmt).scalars().all() (every row), slice in the DB
+        stmt,                                                     # the statement — no filters on this route, just the order_by
+        page=page,                                                # which slice
+        per_page=10,                                              # 10 rows per page → LIMIT 10 OFFSET (page-1)*10, plus a COUNT(*) for total page math
+        error_out=False,                                          # ?page=999 → empty page object, NOT a 404. graceful instead of crashing
+    )
+    return render_template(
+        "reports.html",
+        reports=pagination.items,                                 # ONLY this page's slice (≤10 Report objects) — the .items list off the Pagination object
+        pagination=pagination,                                    # the whole Pagination object → the partial reads .has_prev / .pages / .iter_pages() etc
+    )
+
 
 @app.route("/my-reports")                                  # a citizen's own reports — private, login-gated
 @login_required                                            # precondition: guarantees a real current_user.id exists before the query runs
 def my_reports():
+    page = request.args.get("page", 1, type=int)           # which page to show. same coercion + fallback as /reports and /admin
     stmt = db.select(Report).where(                        # the ownership filter — the whole point of this session
         Report.user_id == current_user.id                  # == builds a SQL expression, not a Python bool. "rows whose owner is me"
     ).order_by(Report.created_at.desc())                   # newest first, matching /reports and /admin
-    my = db.session.execute(stmt).scalars().all()          # .scalars() → bare Report objects, not 1-tuples. same idiom as your other list routes
-    return render_template("my_reports.html", reports=my)  # pass as `reports` so the template loop reads identically to reports.html
+    pagination = db.paginate(                              # same swap as /reports — slice in the DB instead of fetching every row
+        stmt,                                              # the ownership-filtered statement
+        page=page,                                         # which slice
+        per_page=10,                                       # 10 rows per page — same per_page as /reports and /admin
+        error_out=False,                                   # ?page=999 → empty page object, NOT a 404
+    )
+    return render_template(
+        "my_reports.html",
+        reports=pagination.items,                          # ONLY this page's slice (≤10 Report objects)
+        pagination=pagination,                             # the whole Pagination object → the partial reads .has_prev / .pages / etc
+    )
 
 
 @app.route("/report/<int:report_id>")                      # GET — view ONE report in full. <int:..> validates+coerces the id, same converter as update_status

@@ -24,6 +24,8 @@
             </li>
         {% endfor %}
         </ul>
+        {# same reusable page control — identical include as reports.html and /admin. endpoint here is my_reports, so links build /my-reports?page=N #}
+        {% include "_pagination.html" %}
     {% else %}
         {# empty state — a citizen who hasn't filed anything yet, with a nudge to the form #}
         <p>You haven't filed any reports yet. <a href="{{ url_for('report') }}">Report a hazard.</a></p>
