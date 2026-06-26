@@ -9,6 +9,10 @@ from flask_migrate import Migrate                          # wraps Alembic → t
 from flask_wtf import CSRFProtect                          # CSRF defense — issues + verifies the per-form token signed by secret_key
 from werkzeug.security import generate_password_hash, check_password_hash      # one-way password hashing (ships with Flask)
 
+from dotenv import load_dotenv                             # reads .env into os.environ. MUST run before Config is imported — Config's class body reads os.environ at import time
+load_dotenv()                                              # populate the environment NOW, so the os.environ.get(...) calls inside Config see the real values
+from config import Config, ALLOWED_HAZARDS, ALLOWED_STATUSES  # the single home for settings + the two allow-lists. import AFTER load_dotenv so env vars are already loaded
+
 from forms import LoginForm, RegistrationForm, ReportForm  # the declarative form classes (forms.py)
 
 import os                                                  # filesystem paths — building the save location, ensuring the folder exists
@@ -26,17 +30,11 @@ migrate = Migrate()                                        # the migration engin
 csrf = CSRFProtect()                                       # CSRF guard. create-then-init like the others — bound to app below
 
 app = Flask(__name__)                                      # the application object
-app.secret_key = "dev-secret-change-me"                    # signs the session cookie AND the CSRF tokens — now load-bearing in TWO ways
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://localhost:5432/pothole_db"  # which Postgres db to talk to
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False       # silences an unused memory-leaking feature
-app.config["UPLOAD_FOLDER"] = "static/uploads"             # where photos land. under static/ so Flask serves them for free
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024         # 5 MB ceiling on the whole request body. server-side → client can't bypass it
+app.config.from_object(Config)                             # load ALL settings in one shot — copies every UPPERCASE attr off Config into app.config (SECRET_KEY, DB URI, UPLOAD_FOLDER, etc). must run before db.init_app reads the URI
 
-ALLOWED_STATUSES = {"Reported", "In Progress", "Fixed"}    # allow-list of valid lifecycle states. guards /admin filter + update_status
-ALLOWED_HAZARDS = {"pothole", "streetlight", "garbage", "flooding"}  # allow-list for the /admin query-string filter (NOT the report form — that's now ReportForm.choices)
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads folder on startup if missing. exist_ok=True → no crash if it already exists
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)    # create the uploads folder on startup if missing. exist_ok=True → no crash if it already exists. reads the path Config just loaded
 
-db.init_app(app)                                           # bind db to this app
+db.init_app(app)                                           # bind db to this app — reads SQLALCHEMY_DATABASE_URI NOW, so from_object above had to run first
 login_manager.init_app(app)                                # bind the login manager to this app
 migrate.init_app(app, db)                                  # bind migrate — needs both app and db (it inspects models)
 csrf.init_app(app)                                         # bind CSRF — now every POST/PUT/PATCH/DELETE must carry a valid token; GET stays exempt
@@ -244,12 +242,12 @@ def admin():
 
     stmt = db.select(Report).order_by(Report.created_at.desc())  # base query — every report, newest first. the unchanged default when no valid filter is present
 
-    if status_filter in ALLOWED_STATUSES:                  # allow-list wall — the SAME set that guards update_status. junk like ?status=banana fails here
+    if status_filter in ALLOWED_STATUSES:                  # allow-list wall — the SAME set that guards update_status. junk like ?status=banana fails here. now imported from config
         stmt = stmt.where(Report.status == status_filter)  # .where() returns a NEW stmt with the WHERE bolted on (immutable, like String.trim()) → reassign, don't mutate
     else:
         status_filter = ""                                 # normalise junk/empty → "" so the template treats "no valid filter" as "All selected"
 
-    if hazard_filter in ALLOWED_HAZARDS:                   # second independent if — NOT elif. both filters can apply at once
+    if hazard_filter in ALLOWED_HAZARDS:                   # second independent if — NOT elif. both filters can apply at once. now imported from config — same list the form uses
         stmt = stmt.where(Report.hazard_type == hazard_filter)  # chaining a second .where() → SQL ANDs the conditions: WHERE status=... AND hazard_type=...
     else:
         hazard_filter = ""                                 # same normalise → "" means "All" for the hazard bar
@@ -285,7 +283,7 @@ def update_status(report_id):                              # report_id arrives a
         return redirect(url_for("home"))
 
     new_status = request.form.get("status", "").strip()    # the submitted target state, cleaned. arrives in request.form from the clicked button's value
-    if new_status not in ALLOWED_STATUSES:                 # allow-list wall — rejects status=banana and any other forged value
+    if new_status not in ALLOWED_STATUSES:                 # allow-list wall — rejects status=banana and any other forged value. now imported from config
         flash("Invalid status.")
         return redirect(url_for("admin"))
 

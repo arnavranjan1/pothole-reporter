@@ -10,6 +10,8 @@ from wtforms import (
 )
 from wtforms.validators import DataRequired, Length, Optional, ValidationError
 
+from config import ALLOWED_HAZARDS                 # the single source of truth (value→label dict). the dropdown is now BUILT from it — same list the /admin filter uses
+
 
 def strip_whitespace(value):                       # mirrors the .strip() you did by hand in every route
     return value.strip() if isinstance(value, str) else value
@@ -42,13 +44,9 @@ class RegistrationForm(FlaskForm):
 class ReportForm(FlaskForm):
     hazard_type = SelectField(
         "Hazard type",
-        choices=[                                  # this list IS the allow-list now — junk values rejected automatically
+        choices=[                                  # the placeholder + the real options BUILT from ALLOWED_HAZARDS → one source, no drift possible
             ("", "-- Select Option --"),           # placeholder: valid choice but empty → DataRequired catches it
-            ("pothole", "Pothole"),
-            ("streetlight", "Broken streetlight"),
-            ("garbage", "Garbage"),
-            ("flooding", "Flooding"),
-        ],
+        ] + list(ALLOWED_HAZARDS.items()),         # .items() yields (value, label) pairs in insertion order → exactly SelectField's required shape. list() because + needs a list, not a dict_items view
         validators=[DataRequired()],
     )
     location = StringField(
