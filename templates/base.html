@@ -5,32 +5,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- adjusts for mobile -->
     <title> {% block title %} Pothole Reporter {% endblock %} </title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">  <!-- our first stylesheet. url_for('static', ...) builds the path → survives a subpath deploy, unlike hardcoding /static/... -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">  <!-- our stylesheet. url_for('static', ...) builds the path → survives a subpath deploy, unlike hardcoding /static/... -->
 </head>
 <body>
-    <nav>
-        <a href="{{ url_for('home') }}">Home</a> |
-        <a href="{{ url_for('reports') }}">All Reports </a> |
-        <a href="{{ url_for('map_view') }}">Map</a>   <!-- public map page — sits with the public links, outside the login check -->
+    {# ===== top nav — flex bar. brand + primary links pinned left, identity/auth pinned right. space-between (in CSS) pushes the two groups apart ===== #}
+    <nav class="site-nav">
+        <div class="nav-left">
+            <a href="{{ url_for('home') }}" class="brand">Pothole Reporter</a>
+            {# active class added when request.endpoint matches this link's route → CSS bolds it. request.endpoint is the name of the view currently rendering #}
+            <a href="{{ url_for('home') }}" class="nav-link {{ 'active' if request.endpoint == 'home' }}">Home</a>
+            <a href="{{ url_for('reports') }}" class="nav-link {{ 'active' if request.endpoint == 'reports' }}">All Reports</a>
+            <a href="{{ url_for('map_view') }}" class="nav-link {{ 'active' if request.endpoint == 'map_view' }}">Map</a>   {# public map page — sits with the public links, outside the login check #}
 
-        {# ===== login-aware nav. current_user is injected into every template by Flask-Login automatically ===== #}
-        {% if current_user.is_authenticated %}              {# is_authenticated comes from UserMixin #}
-            | <a href="{{ url_for('report') }}">Report a Hazard</a>
-            | <a href="{{ url_for('my_reports') }}">My Reports</a>   {# this user's own reports — login-gated, so it lives inside this block #}
-            | <span>Hi, {{ current_user.username }}</span>
-            {% if current_user.role == "admin" %}
-                | <a href="{{ url_for('admin') }}">Admin</a>  {# only admins see this link #}
+            {# login-only primary actions live on the left with the other nav links #}
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('report') }}" class="nav-link {{ 'active' if request.endpoint == 'report' }}">Report a Hazard</a>
+                <a href="{{ url_for('my_reports') }}" class="nav-link {{ 'active' if request.endpoint == 'my_reports' }}">My Reports</a>   {# this user's own reports — login-gated #}
+                {% if current_user.role == "admin" %}
+                    <a href="{{ url_for('admin') }}" class="nav-link {{ 'active' if request.endpoint == 'admin' }}">Admin</a>   {# only admins see this link #}
+                {% endif %}
             {% endif %}
-            | <a href="{{ url_for('logout') }}">Log out</a>
-        {% else %}
-            | <a href="{{ url_for('login') }}">Log in</a>
-            | <a href="{{ url_for('register') }}">Register</a>
-        {% endif %}
+        </div>
+
+        {# ===== login-aware identity block, pinned right. current_user is injected by Flask-Login ===== #}
+        <div class="nav-right">
+            {% if current_user.is_authenticated %}              {# is_authenticated comes from UserMixin #}
+                <span class="nav-user">Hi, {{ current_user.username }}</span>
+                <a href="{{ url_for('logout') }}" class="nav-link">Log out</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="nav-link {{ 'active' if request.endpoint == 'login' }}">Log in</a>
+                <a href="{{ url_for('register') }}" class="nav-link {{ 'active' if request.endpoint == 'register' }}">Register</a>
+            {% endif %}
+        </div>
         {# ===== end login-aware nav ===== #}
     </nav>
-    <hr> <!-- creates horizontal line -->
-    <main>
-        {# ===== flash messages, now category-aware. with_categories=true → each item is a (category, message) TUPLE, not a bare string ===== #}
+
+    <main class="container">
+        {# ===== flash messages, category-aware. with_categories=true → each item is a (category, message) TUPLE, not a bare string ===== #}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <ul class="flashes">

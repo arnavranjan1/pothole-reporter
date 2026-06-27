@@ -2,6 +2,17 @@
 {% extends "base.html" %}
 {% block title %}Home — Pothole Reporter{% endblock %}
 {% block content %}
-    <h1> Smart Pothole and Road Hazard Reporter </h1>
-    <p> Spot a pothole, broken light, garbage, or flooding? Report it and track its status. </p>
+    <section class="hero">
+        <h1>Smart Pothole &amp; Road Hazard Reporter</h1>
+        <p>Spot a pothole, broken light, garbage, or flooding? Report it with a photo and a pin on the map, then track its status from Reported to Fixed.</p>
+        <div class="hero-actions">
+            {# logged-in → straight to the form; logged-out → through login first #}
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('report') }}" class="btn-primary">Report a Hazard</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="btn-primary">Log in to Report</a>
+            {% endif %}
+            <a href="{{ url_for('reports') }}" class="btn-secondary">View All Reports</a>
+        </div>
+    </section>
 {% endblock %}

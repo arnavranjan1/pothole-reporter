@@ -1,40 +1,44 @@
 <!-- reports list page -->
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge %}   {# the reusable badge component #}
 {% block title %}All Reports{% endblock %}
 {% block content %}
     <h1>All Reports</h1>
 
-    {# if the list passed in from the route has anything in it, show the list; else show the empty-state message below. Jinja treats an empty list as falsy #}
+    {# if the list passed in from the route has anything in it, show the grid; else the empty-state below. Jinja treats an empty list as falsy #}
     {% if reports %}
-        <ul>
-        {# loop over each Report object. inside, 'report' is one object and we reach its columns by dot access — the same attributes defined on the model #}
+        <ul class="report-list">
+        {# loop over each Report object. 'report' is one object; reach its columns by dot access — the attributes defined on the model #}
         {% for report in reports %}
-            <li>
-                {# hazard type now links through to the full detail page. url_for builds /report/<id> so a route rename never breaks it #}
-                <strong><a href="{{ url_for('report_detail', report_id=report.id) }}">{{ report.hazard_type }}</a></strong> — {{ report.location }}
-                ({{ report.status }})
-                {# filer identity gated by the model rule — hidden from logged-out/other users, matching the detail page (coherent across surfaces) #}
-                <br>Filed by:
-                {% if report.filer_visible_to(current_user) %}
-                    {{ report.author.username if report.author else "unknown" }}
-                {% else %}
-                    <em>hidden</em>
-                {% endif %}
-                {# only print the description line if there is one — it's optional/nullable #}
+            <li class="report-card">
+                {# hazard type links through to the full detail page. url_for builds /report/<id> so a route rename never breaks it #}
+                <p class="report-card__title">
+                    <a href="{{ url_for('report_detail', report_id=report.id) }}">{{ report.hazard_type }}</a>
+                </p>
+                <p class="report-card__meta">{{ report.location }} {{ status_badge(report.status) }}</p>
+                {# filer identity gated by the model rule — hidden from logged-out/other users, matching the detail page #}
+                <p class="report-card__meta">Filed by:
+                    {% if report.filer_visible_to(current_user) %}
+                        {{ report.author.username if report.author else "unknown" }}
+                    {% else %}
+                        <em>hidden</em>
+                    {% endif %}
+                </p>
+                {# only print the description if there is one — it's optional/nullable #}
                 {% if report.description %}
-                    <br>{{ report.description }}
+                    <p class="report-card__desc">{{ report.description }}</p>
                 {% endif %}
-                {# only show a thumbnail if a photo was uploaded. ~ is Jinja's string-concat (not +) → builds 'uploads/<filename>' for the static route #}
+                {# only show a thumbnail if a photo was uploaded. ~ is Jinja's string-concat (not +) → builds 'uploads/<filename>' #}
                 {% if report.image_filename %}
-                    <br><img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" width="120">
+                    <img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" width="120">
                 {% endif %}
             </li>
         {% endfor %}
         </ul>
-        {# the reusable page control — same partial as /admin. reads request.args + request.endpoint, so it builds correct ?page=N links here with nothing to configure #}
+        {# the reusable page control — same partial as /admin. reads request.args + request.endpoint #}
         {% include "_pagination.html" %}
     {% else %}
-        {# the empty state, with a link to the form to create the first one #}
+        {# empty state, with a link to the form to create the first one #}
         <p>No reports yet. <a href="{{ url_for('report') }}">Report the first hazard.</a></p>
     {% endif %}
 {% endblock %}

@@ -1,43 +1,277 @@
-/* ===== flash messages — the whole point of categorizing them: colour by severity ===== */
-.flashes {
-    list-style: none;          /* drop the bullet points */
-    padding: 0;
-    margin: 0 0 1rem 0;
+/* ============================================================
+   DESIGN TOKENS — single source of truth for every visual
+   decision. Same instinct as ALLOWED_HAZARDS living in config:
+   define once here, reference with var(--x) everywhere. Change a
+   value on this block → the whole app updates.
+   ============================================================ */
+:root {
+    /* ----- surfaces & text (neutral gray scale) ----- */
+    --color-bg:          #f3f5f7;   /* page background — soft cool gray */
+    --color-surface:     #ffffff;   /* cards, nav bar, form panels */
+    --color-border:      #dde3e8;   /* hairline borders between things */
+    --color-text:        #1f2933;   /* primary text — near-black, faintly cool */
+    --color-text-muted:  #5c6b77;   /* timestamps, captions, secondary text */
+
+    /* ----- the one accent (confident govtech blue) ----- */
+    --color-accent:        #1d6fb8; /* links, primary buttons, active pills */
+    --color-accent-hover:  #15568f; /* darker shade for hover/active */
+    --color-accent-soft:   #e8f1fa; /* tinted bg — active pill fill, focus glow */
+
+    /* ----- status colors — these CARRY MEANING. must stay
+       distinct at a glance on the dashboard. text + soft bg pairs. ----- */
+    --color-reported:      #b3261e; /* Reported    → red   (needs attention) */
+    --color-reported-bg:   #fbeae8;
+    --color-progress:      #9a6700; /* In Progress → amber (being worked) */
+    --color-progress-bg:   #fbf1e0;
+    --color-fixed:         #1c7c43; /* Fixed       → green (resolved) */
+    --color-fixed-bg:      #e6f4ec;
+
+    /* ----- spacing scale (one consistent rhythm everywhere) ----- */
+    --space-xs:  0.25rem;
+    --space-sm:  0.5rem;
+    --space-md:  1rem;
+    --space-lg:  1.5rem;
+    --space-xl:  2.5rem;
+
+    /* ----- shape & layout ----- */
+    --radius:     8px;              /* default radius — cards, inputs, buttons */
+    --radius-sm:  6px;              /* tighter radius — badges, pagination cells */
+    --max-width:  960px;           /* content column cap — keeps line lengths readable */
+    --shadow:     0 1px 3px rgba(15, 30, 45, 0.08);  /* subtle card lift */
 }
 
+/* ===== base reset & page frame ===== */
+* { box-sizing: border-box; }      /* width includes padding/border → predictable sizing */
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    color: var(--color-text);
+    background: var(--color-bg);
+}
+
+/* the centered content column every page renders into */
+.container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-xl) var(--space-md);
+}
+
+h1 { font-size: 1.9rem; margin: 0 0 var(--space-md); letter-spacing: -0.01em; }
+h2 { font-size: 1.3rem; margin: var(--space-lg) 0 var(--space-sm); }
+
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { color: var(--color-accent-hover); text-decoration: underline; }
+
+/* ===== top nav — flex bar. brand + primary links pinned left,
+   identity/auth pinned right. justify-content:space-between dumps
+   ALL slack into the gap between the two groups; align-items:center
+   handles vertical centering. (the canonical nav recipe.) ===== */
+.site-nav {
+    display: flex;
+    justify-content: space-between;   /* THE thing that pushes the two groups apart */
+    align-items: center;              /* vertical centering partner */
+    flex-wrap: wrap;                  /* narrow screens → groups wrap instead of overflowing */
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+.nav-left, .nav-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+.brand { font-weight: 700; font-size: 1.05rem; color: var(--color-text); }
+.brand:hover { color: var(--color-text); text-decoration: none; }
+.nav-link { color: var(--color-text-muted); font-size: 0.95rem; }
+.nav-link:hover { color: var(--color-accent); text-decoration: none; }
+.nav-link.active { color: var(--color-accent); font-weight: 700; }   /* current page → bold + accent. request.endpoint match in base.html drives this */
+.nav-user { color: var(--color-text-muted); font-size: 0.95rem; }
+
+/* ===== flash messages — colour by severity (categories from the route) ===== */
+.flashes { list-style: none; padding: 0; margin: 0 0 var(--space-lg); }
 .flash {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    border-radius: 6px;
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-sm);
+    border-radius: var(--radius-sm);
     border: 1px solid transparent;
+    font-size: 0.95rem;
 }
+.flash-success { background: var(--color-fixed-bg);    border-color: #bfe2cc; color: var(--color-fixed); }
+.flash-error   { background: var(--color-reported-bg); border-color: #f0c4c0; color: var(--color-reported); }
+.flash-info    { background: var(--color-accent-soft); border-color: #c4ddf2; color: var(--color-accent-hover); }
 
-.flash-success {               /* good news → green */
-    background: #e6f4ea;
-    border-color: #b7dfc3;
-    color: #1e5631;
+/* ===== buttons & form submits ===== */
+button,
+input[type="submit"],
+input[type="button"] {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--color-accent);
+    background: var(--color-accent);
+    color: #fff;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius);
+    transition: background 0.12s ease;
 }
+button:hover,
+input[type="submit"]:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
 
-.flash-error {                 /* bad news → red */
-    background: #fdecea;
-    border-color: #f5c6c0;
-    color: #8a1c12;
+/* CTA buttons (homepage) — same look, but as <a> links */
+.btn-primary, .btn-secondary {
+    display: inline-block;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius);
+    font-weight: 600;
 }
+.btn-primary   { background: var(--color-accent); color: #fff; }
+.btn-primary:hover { background: var(--color-accent-hover); text-decoration: none; }
+.btn-secondary { background: var(--color-surface); color: var(--color-accent); border: 1px solid var(--color-border); }
+.btn-secondary:hover { background: var(--color-accent-soft); text-decoration: none; }
 
-.flash-info {                  /* neutral notice (e.g. logged out) → blue/grey */
-    background: #e8f0fe;
-    border-color: #c2d4f5;
-    color: #1a3e72;
+/* ===== forms ===== */
+.form-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-lg);
+    max-width: 520px;
+    box-shadow: var(--shadow);
 }
+.form-panel--wide { max-width: 720px; }   /* report form needs room for the picker map */
+/* keep text fields readable even in the wide panel — only the map goes full width */
+.form-panel--wide input[type="text"],
+.form-panel--wide select,
+.form-panel--wide textarea { max-width: 480px; }
+
+.form-group { margin-bottom: var(--space-md); }
+.form-group label { display: inline-block; font-weight: 600; margin-bottom: var(--space-xs); font-size: 0.95rem; }
+
+input[type="text"],
+input[type="password"],
+input[type="file"],
+select,
+textarea {
+    width: 100%;
+    font: inherit;
+    padding: var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--color-text);
+}
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-soft);   /* accessible focus ring */
+}
+textarea { min-height: 5rem; resize: vertical; }
+.form-error { display: block; color: var(--color-reported); font-size: 0.85rem; margin-top: var(--space-xs); }
+
+/* ===== status badge — base + modifier. base holds shape/size/font
+   (written ONCE); each modifier only swaps colour. the _pagination.html
+   reuse instinct, applied to a visual component. ===== */
+.badge {
+    display: inline-block;
+    padding: 0.15rem var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.badge--reported { background: var(--color-reported-bg); color: var(--color-reported); }
+.badge--progress { background: var(--color-progress-bg); color: var(--color-progress); }
+.badge--fixed    { background: var(--color-fixed-bg);    color: var(--color-fixed); }
+
+/* ===== report cards — the report lists. GRID earns its keep here:
+   a 2-D gallery of auto-fitting columns. (everything else is 1-D flexbox.) ===== */
+.report-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-md);
+}
+.report-list--single { grid-template-columns: 1fr; }   /* admin = one wide column, more data per card */
+.report-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-md);
+    box-shadow: var(--shadow);
+}
+.report-card__title { font-size: 1.05rem; font-weight: 700; margin: 0 0 var(--space-xs); }
+.report-card__meta  { color: var(--color-text-muted); font-size: 0.9rem; margin: var(--space-xs) 0; }
+.report-card__desc  { margin: var(--space-sm) 0; }
+.report-card img    { display: block; margin-top: var(--space-sm); border-radius: var(--radius-sm); max-width: 100%; }
+
+/* ===== filter pills (admin status & hazard bars) ===== */
+.filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); margin: var(--space-sm) 0; }
+.filter-bar__label { font-weight: 600; color: var(--color-text-muted); margin-right: var(--space-xs); }
+.pill {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    font-size: 0.85rem;
+    color: var(--color-accent);
+    background: var(--color-surface);
+}
+.pill:hover { background: var(--color-accent-soft); text-decoration: none; }
+.pill--active { background: var(--color-accent); border-color: var(--color-accent); color: #fff; cursor: default; }
+.pill--active:hover { background: var(--color-accent); text-decoration: none; }
+
+/* ===== admin search + status-change controls ===== */
+.search-form { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-md); }
+.search-form input[type="text"] { flex: 1 1 240px; }
+.clear-link { font-size: 0.9rem; color: var(--color-text-muted); }
+
+.status-form { display: inline-flex; gap: var(--space-xs); flex-wrap: wrap; margin: var(--space-sm) 0; }
+.status-btn {
+    background: var(--color-surface);
+    color: var(--color-accent);
+    border: 1px solid var(--color-border);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.85rem;
+}
+.status-btn:hover { background: var(--color-accent-soft); border-color: var(--color-accent); }
+
+/* ===== single report detail ===== */
+.detail-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow);
+}
+.detail-panel p { margin: var(--space-sm) 0; }
+.detail-img { max-width: 100%; border-radius: var(--radius); margin-top: var(--space-md); }
+#detailMap, #pickerMap { border-radius: var(--radius); border: 1px solid var(--color-border); margin-top: var(--space-sm); }
+
+/* ===== home hero ===== */
+.hero { padding: var(--space-lg) 0; }
+.hero p { font-size: 1.1rem; color: var(--color-text-muted); max-width: 60ch; }
+.hero-actions { display: flex; gap: var(--space-md); margin-top: var(--space-lg); flex-wrap: wrap; }
+
+/* ===== pagination control ===== */
+.pagination { display: flex; gap: var(--space-xs); align-items: center; flex-wrap: wrap; margin-top: var(--space-lg); }
+.pagination a, .pagination span, .pagination strong {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    font-size: 0.9rem;
+}
+.pagination a { color: var(--color-accent); }
+.pagination a:hover { background: var(--color-accent-soft); text-decoration: none; }
+.pagination strong { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+/* disabled prev/next and the … gap → no border, muted, not button-like */
+.pagination .is-disabled, .pagination .ellipsis { border-color: transparent; color: var(--color-text-muted); }
+.page-info { color: var(--color-text-muted); font-size: 0.85rem; }
 
 /* ===== error pages — centred, calm, not alarming ===== */
-.error-page {
-    text-align: center;
-    padding: 3rem 1rem;
-}
-
-.error-page h1 {
-    font-size: 4rem;
-    margin: 0;
-    color: #444;
-}
+.error-page { text-align: center; padding: var(--space-xl) var(--space-md); }
+.error-page h1 { font-size: 4rem; margin: 0; color: var(--color-text-muted); }
+.error-page p { color: var(--color-text-muted); }

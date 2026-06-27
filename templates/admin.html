@@ -1,70 +1,81 @@
 <!-- admin dashboard -->
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
 {% block title %}Admin{% endblock %}
 {% block content %}
     <h1>All reports (admin)</h1>
 
-    {# search box — a GET form (search is a READ → no POST, no CSRF token needed; GET is CSRF-exempt anyway). #}
-    {# submitting builds the query string from these inputs. NO page input → page absent → route defaults to 1 → a new search RESETS to page 1. #}
+    {# search box — a GET form (READ → no CSRF needed; GET is exempt). submitting builds the query string. #}
+    {# NO page input → page absent → route defaults to 1 → a new search RESETS to page 1. #}
     {# active_status / active_hazard ride along as hidden inputs so searching doesn't WIPE the live filters. #}
-    <form method="GET" action="{{ url_for('admin') }}">
+    <form class="search-form" method="GET" action="{{ url_for('admin') }}">
         <input type="text" name="q" value="{{ active_q }}" placeholder="Search description or location">
         {% if active_status %}<input type="hidden" name="status" value="{{ active_status }}">{% endif %}
         {% if active_hazard %}<input type="hidden" name="hazard_type" value="{{ active_hazard }}">{% endif %}
         <button type="submit">Search</button>
-        {% if active_q %}<a href="{{ url_for('admin', status=active_status, hazard_type=active_hazard) }}">clear</a>{% endif %}  {# clear drops q, keeps the filters #}
+        {% if active_q %}<a class="clear-link" href="{{ url_for('admin', status=active_status, hazard_type=active_hazard) }}">clear</a>{% endif %}  {# clear drops q, keeps the filters #}
     </form>
 
-    {# status filter bar — GET links. each link now CARRIES active_hazard AND active_q so switching status wipes neither. page is dropped → switching filter resets to page 1. #}
-    <p>
-        Status:
-        {% if active_status %}<a href="{{ url_for('admin', hazard_type=active_hazard, q=active_q) }}">All</a>{% else %}<strong>All</strong>{% endif %}
+    {# status filter bar — GET links as pills. each link CARRIES active_hazard AND active_q so switching status wipes neither. page dropped → reset to page 1. #}
+    <div class="filter-bar">
+        <span class="filter-bar__label">Status</span>
+        {% if active_status %}<a class="pill" href="{{ url_for('admin', hazard_type=active_hazard, q=active_q) }}">All</a>{% else %}<span class="pill pill--active">All</span>{% endif %}
         {% for s in ["Reported", "In Progress", "Fixed"] %}
-            | {% if active_status == s %}<strong>{{ s }}</strong>{% else %}<a href="{{ url_for('admin', status=s, hazard_type=active_hazard, q=active_q) }}">{{ s }}</a>{% endif %}
+            {% if active_status == s %}<span class="pill pill--active">{{ s }}</span>{% else %}<a class="pill" href="{{ url_for('admin', status=s, hazard_type=active_hazard, q=active_q) }}">{{ s }}</a>{% endif %}
         {% endfor %}
-    </p>
+    </div>
 
     {# hazard filter bar — same idea, perpendicular axis. each link carries active_status AND active_q so all three compose. page dropped → reset to 1. #}
-    <p>
-        Hazard:
-        {% if active_hazard %}<a href="{{ url_for('admin', status=active_status, q=active_q) }}">All</a>{% else %}<strong>All</strong>{% endif %}
+    <div class="filter-bar">
+        <span class="filter-bar__label">Hazard</span>
+        {% if active_hazard %}<a class="pill" href="{{ url_for('admin', status=active_status, q=active_q) }}">All</a>{% else %}<span class="pill pill--active">All</span>{% endif %}
         {% for value, label in [("pothole", "Pothole"), ("streetlight", "Broken streetlight"), ("garbage", "Garbage"), ("flooding", "Flooding")] %}
-            | {% if active_hazard == value %}<strong>{{ label }}</strong>{% else %}<a href="{{ url_for('admin', status=active_status, hazard_type=value, q=active_q) }}">{{ label }}</a>{% endif %}
+            {% if active_hazard == value %}<span class="pill pill--active">{{ label }}</span>{% else %}<a class="pill" href="{{ url_for('admin', status=active_status, hazard_type=value, q=active_q) }}">{{ label }}</a>{% endif %}
         {% endfor %}
-    </p>
+    </div>
 
-    {% for report in reports %}
-        <div>
+    {% if reports %}
+    <ul class="report-list report-list--single">
+        {% for report in reports %}
+        <li class="report-card">
             {# hazard type links through to the full detail page — same swap as the citizen list views #}
-            <strong><a href="{{ url_for('report_detail', report_id=report.id) }}">{{ report.hazard_type }}</a></strong> @ {{ report.location }}
-            <br>Status: {{ report.status }}
+            <p class="report-card__title">
+                <a href="{{ url_for('report_detail', report_id=report.id) }}">{{ report.hazard_type }}</a>
+                <span class="report-card__meta">@ {{ report.location }}</span>
+            </p>
+            <p class="report-card__meta">Status: {{ status_badge(report.status) }}</p>
+
             {# status-change controls — one tiny POST form, three submit buttons, each posting a different target status #}
-            <form method="POST" action="{{ url_for('update_status', report_id=report.id) }}" style="display:inline;">
+            <form class="status-form" method="POST" action="{{ url_for('update_status', report_id=report.id) }}">
                 {# CSRF token — sits INSIDE the loop so each report's form gets its own token. this is the route an attacker would forge → must be guarded #}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {# each button shares name="status" but carries a different value → only the CLICKED button's value is sent → server reads request.form['status'] #}
-                <button type="submit" name="status" value="Reported">Reported</button>
-                <button type="submit" name="status" value="In Progress">In Progress</button>
-                <button type="submit" name="status" value="Fixed">Fixed</button>
+                <button class="status-btn" type="submit" name="status" value="Reported">Reported</button>
+                <button class="status-btn" type="submit" name="status" value="In Progress">In Progress</button>
+                <button class="status-btn" type="submit" name="status" value="Fixed">Fixed</button>
             </form>
+
             {# same model rule — an admin always passes it, so admins still see every filer; consistency over a special-case #}
-            <br>Filed by:
-            {% if report.filer_visible_to(current_user) %}
-                {{ report.author.username if report.author else "unknown" }}
-            {% else %}
-                <em>hidden</em>
-            {% endif %}
-            <br><small>{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
+            <p class="report-card__meta">Filed by:
+                {% if report.filer_visible_to(current_user) %}
+                    {{ report.author.username if report.author else "unknown" }}
+                {% else %}
+                    <em>hidden</em>
+                {% endif %}
+            </p>
+            <p class="report-card__meta">{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+
             {# thumbnail only if a photo exists. same ~ concat pattern as reports.html #}
             {% if report.image_filename %}
-                <br><img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" width="120">
+                <img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" width="120">
             {% endif %}
-        </div>
-        <hr>
-    {% else %}                                              <!-- runs only if THIS page's slice is empty -->
-        <p>No reports match.</p>                            <!-- was "No reports yet" — now it can also mean "filters/search excluded everything" -->
-    {% endfor %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+        <p>No reports match.</p>   {# was "No reports yet" — now it can also mean "filters/search excluded everything" #}
+    {% endif %}
 
-    {# pagination controls — the reusable partial reads `pagination` + request.args itself. #}
+    {# pagination controls — the reusable partial reads `pagination` + request.args itself #}
     {% include "_pagination.html" %}
 {% endblock %}

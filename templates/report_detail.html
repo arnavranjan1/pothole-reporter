@@ -1,33 +1,36 @@
 <!-- single-report detail page -->
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
 {% block title %}Report #{{ report.id }}{% endblock %}
 {% block content %}
     <h1>{{ report.hazard_type }}</h1>
 
-    {# core fields — read straight off the single `report` object, no loop (we were handed ONE report, not a list) #}
-    <p><strong>Location:</strong> {{ report.location }}</p>
-    <p><strong>Status:</strong> {{ report.status }}</p>
+    <div class="detail-panel">
+        {# core fields — read straight off the single `report` object, no loop (we were handed ONE report, not a list) #}
+        <p><strong>Location:</strong> {{ report.location }}</p>
+        <p><strong>Status:</strong> {{ status_badge(report.status) }}</p>
 
-    {# description is optional (nullable Text) → only show the block if there's something in it #}
-    {% if report.description %}
-        <p><strong>Description:</strong> {{ report.description }}</p>
-    {% endif %}
-
-    {# filer identity is private — the model decides who may see it (owner or admin). same rule on every page now #}
-    <p><strong>Filed by:</strong>
-        {% if report.filer_visible_to(current_user) %}
-            {{ report.author.username if report.author else "unknown" }}   {# author can still be None for old pre-auth reports #}
-        {% else %}
-            <em>hidden</em>                                {# logged-out or non-owner: see the report, not who filed it #}
+        {# description is optional (nullable Text) → only show the block if there's something in it #}
+        {% if report.description %}
+            <p><strong>Description:</strong> {{ report.description }}</p>
         {% endif %}
-    </p>
 
-    <p><small>{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</small></p>
+        {# filer identity is private — the model decides who may see it (owner or admin). same rule on every page now #}
+        <p><strong>Filed by:</strong>
+            {% if report.filer_visible_to(current_user) %}
+                {{ report.author.username if report.author else "unknown" }}   {# author can still be None for old pre-auth reports #}
+            {% else %}
+                <em>hidden</em>                                {# logged-out or non-owner: see the report, not who filed it #}
+            {% endif %}
+        </p>
 
-    {# full-size photo (not the 120px thumbnail from admin.html) — only if one was uploaded #}
-    {% if report.image_filename %}
-        <img src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo" style="max-width: 100%;">
-    {% endif %}
+        <p class="report-card__meta">{{ report.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+
+        {# full-size photo (not the 120px thumbnail from admin.html) — only if one was uploaded #}
+        {% if report.image_filename %}
+            <img class="detail-img" src="{{ url_for('static', filename='uploads/' ~ report.image_filename) }}" alt="hazard photo">
+        {% endif %}
+    </div>
 
     {# mini-map — only render the whole block if this report actually HAS coords. Jinja's `none` is lowercase (its None) #}
     {% if report.latitude is not none and report.longitude is not none %}

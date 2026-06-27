@@ -1,0 +1,14 @@
+{# ===== reusable Jinja macro — the _pagination.html idea, but for a visual
+   component. status_badge(status) renders the base+modifier badge so the
+   value→class mapping lives in ONE place. import it where a status shows.
+   a macro is a callable template fragment — like a tiny function you {{ call }}. ===== #}
+{% macro status_badge(status) %}
+    {# map the stored status string → its modifier class. .get with a default ''
+       so an unexpected value still renders a plain (uncoloured) badge, not an error #}
+    {% set modifier = {
+        "Reported": "badge--reported",
+        "In Progress": "badge--progress",
+        "Fixed": "badge--fixed"
+    }.get(status, "") %}
+    <span class="badge {{ modifier }}">{{ status }}</span>
+{% endmacro %}

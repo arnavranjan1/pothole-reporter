@@ -4,23 +4,23 @@
 {% block content %}
     <h1>Create an account</h1>
 
-    <form action="{{ url_for('register') }}" method="post">
+    <form class="form-panel" action="{{ url_for('register') }}" method="post">
         {# hidden_tag() emits the CSRF token #}
         {{ form.hidden_tag() }}
 
-        <div style="margin-bottom: 1rem;">
+        <div class="form-group">
             {{ form.username.label }}<br>
             {{ form.username() }}
             {% for error in form.username.errors %}    {# "That username is already taken." surfaces HERE via validate_username #}
-                <span style="color: red;">{{ error }}</span>
+                <span class="form-error">{{ error }}</span>
             {% endfor %}
         </div>
 
-        <div style="margin-bottom: 1rem;">
+        <div class="form-group">
             {{ form.password.label }}<br>
             {{ form.password() }}
             {% for error in form.password.errors %}
-                <span style="color: red;">{{ error }}</span>
+                <span class="form-error">{{ error }}</span>
             {% endfor %}
         </div>
 
